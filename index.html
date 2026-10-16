@@ -85,6 +85,20 @@
     .hire-btn{display:block;width:100%;border:1px solid #c8a85b;border-radius:8px;background:#655331;color:#fff1cf;padding:10px 12px;min-height:42px;font-size:12px;font-weight:700;text-align:center}
     .hire-btn:hover{background:#7c6539}.hire-btn:focus-visible{outline:2px solid #ffe7a4;outline-offset:3px}
     @media(max-width:780px){.candidate-card{padding:11px}.candidate-select{font-size:12px}.controls button{flex:1;min-width:52px}.controls{gap:5px}}
+
+    /* Officer detail dossier (5 individual abilities; species have 8 different attributes). */
+    .officer-tags{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+    .officer-tags span{background:#283d48;border:1px solid #45606b;border-radius:100px;color:#e4eced;font-size:11px;padding:5px 9px}
+    .officer-ability{display:grid;grid-template-columns:50px minmax(0,1fr) 36px;align-items:center;gap:9px;margin:11px 0;font-size:12px}
+    .officer-ability .popbar{height:11px;margin:0}
+    .officer-ability strong{font-variant-numeric:tabular-nums;text-align:right}
+    .officer-name-link,.officer-detail-link{background:transparent;border:0;color:#f5d59a;padding:3px 0;font-size:12px;font-weight:700;text-align:left;cursor:pointer;min-height:30px}
+    .officer-detail-link{display:block;margin:6px 0;color:#e2c992}
+    .officer-name-link:hover,.officer-detail-link:hover{text-decoration:underline}
+    .officer-name-link:focus-visible,.officer-detail-link:focus-visible{outline:2px solid #e9ce7b;outline-offset:3px}
+    .history-person{padding:10px 0;border-bottom:1px solid #38505e;font-size:12px;line-height:1.5}
+    .history-person small{display:block;font-size:10px;color:#9eb3c0;margin-bottom:4px}
+    @media(max-width:780px){.officer-ability{grid-template-columns:50px minmax(0,1fr) 36px}.officer-name-link{min-height:34px}}
   </style>
 </head>
 <body>
@@ -131,7 +145,7 @@
         <div class="tabs" role="tablist" aria-label="情報表示">
           <button class="tab active" data-tab="region" role="tab">地域</button>
           <button class="tab" data-tab="nations" role="tab">国家・内政</button>
-          <button class="tab" data-tab="officers" role="tab">武将</button><button class="tab" data-tab="personnel" role="tab">人事・登用</button>
+          <button class="tab" data-tab="officers" role="tab">武将能力</button><button class="tab" data-tab="personnel" role="tab">人事・登用</button>
           <button class="tab" data-tab="species" role="tab">種族能力</button>
           <button class="tab" data-tab="history" role="tab">年表</button>
         </div>

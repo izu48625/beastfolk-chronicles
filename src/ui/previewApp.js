@@ -4,6 +4,7 @@ import {advanceMonth} from '../core/engine.js';
 import {exportSave, importSave} from '../core/save.js';
 import {getNationDemographics, getSpeciesDemographics} from '../core/demographics.js';
 import {OFFICER_SLOTS,officerAssignment,officerFitness} from '../systems/officers.js';
+import {getOfficerProfile,getCandidateProfile} from '../core/officerProfiles.js';
 
 const $ = id => document.getElementById(id);
 const nfmt = value => new Intl.NumberFormat('ja-JP').format(value);
@@ -15,6 +16,8 @@ const statNames={dom:'内政',eco:'経済',pow:'武力',def:'防御',mob:'機動
 const dietNames={omnivore:'雑食',herbivore:'草食',carnivore:'肉食'};
 const traitNames={keen_smell:'鋭い嗅覚',heavy_food_demand:'大量の食糧を消費',cold_resistance:'耐寒',heat_sensitive:'暑さに弱い',forest_adapted:'森林適応'};
 const slotNames={governor:'統治官',military:'軍事官',advisor:'参謀官'};
+const officerStatNames={martial:'武勇',command:'統率',intellect:'知略',administration:'内政',diplomacy:'外交'};
+const officerStatColors={martial:'#d58777',command:'#e4b76f',intellect:'#8aaec9',administration:'#7dbba2',diplomacy:'#9a9ac8'};
 const officerStatusNames={active:'任地配属',reserve:'予備役',captive:'捕虜',exile:'亡命',retired:'故人・引退'};
 const statColors={dom:'#7dbba2',eco:'#a9ad77',pow:'#d58777',def:'#8aaec9',mob:'#e4b76f',rec:'#9fbb8b',log:'#c6ac8c',dip:'#9a9ac8'};
 const storageKey = 'beastfolk-p0-preview-v1';
@@ -23,6 +26,9 @@ let selectedProvince = 'province_001';
 let selectedTab = 'region';
 let selectedNationId = null;
 let selectedSpeciesId = null;
+let selectedOfficer = null;
+let returnOfficerTab = 'officers';
+let returnOfficerScroll = 0;
 let speed = 0;
 let timer = null;
 
@@ -80,7 +86,7 @@ function regionInfo() {
   html+='<h4>担当武将 3人</h4>';
   for(const slot of OFFICER_SLOTS){
     const id=prov.slots?.[slot],o=world.officers[id];
-    html+='<div class="mini-row" style="cursor:default"><div><strong>'+slotNames[slot]+'</strong><br><small>'+esc(o?.nameJa??'空席')+'</small></div><div style="text-align:right"><strong>'+esc(o?world.species[o.speciesId]?.nameJa??'':'欠員')+'</strong><br><small>'+esc(o?'適性 '+Math.round(officerFitness(o,slot))+' / '+o.age+'歳':'補充が必要')+'</small></div></div>';
+    html+='<'+(o?'button':'div')+(o?' type="button" data-officer="'+esc(o.id)+'"':'')+' class="mini-row"><div><strong>'+slotNames[slot]+'</strong><br><small>'+esc(o?.nameJa??'空席')+(o?' →':'')+'</small></div><div style="text-align:right"><strong>'+esc(o?world.species[o.speciesId]?.nameJa??'':'欠員')+'</strong><br><small>'+esc(o?'適性 '+Math.round(officerFitness(o,slot))+' / '+o.age+'歳':'補充が必要')+'</small></div></'+(o?'button':'div')+'>';
   }
   html+='<button class="backlink" data-personnel-link="'+esc(prov.ownerNationId??'')+'">人事・登用の画面へ →</button>';
   return html+'<div class="notice">人口はまだ固定値ですが、人材は毎年生まれ、交代・加齢・死亡します。</div>';
@@ -117,15 +123,17 @@ function nationInfo() {
   return html+'<div class="notice">世界人口 '+nfmt(worldPeople+worldTroops)+'人（民間 '+nfmt(worldPeople)+' / 兵士 '+nfmt(worldTroops)+'）。兵士は民間人口に重複計上していません。</div>';
 }
 function officersInfo() {
-  let html = '<div class="kicker">OFFICERS / 武将名鑑</div><h3>現役武将</h3>';
-  for (const officer of Object.values(world.officers).filter(o => o.alive)) {
-    const nation = world.nations[officer.nationId];
-    const species = world.species[officer.speciesId];
-    html += '<div class="mini-row" style="cursor:default"><div><strong>' + esc(officer.nameJa) + '</strong><br><small>' +
-      esc(nation?.nameJa ?? '無所属') + ' / ' + esc(species?.nameJa ?? '不明') + ' / '+esc(officerStatusNames[officer.status]??'')+'</small></div><div style="text-align:right"><strong>' +
-      nfmt(officer.age) + '歳</strong><br><small>統率 ' + nfmt(officer.stats.command) + '</small></div></div>';
+  const all=Object.values(world.officers).sort((a,b)=>(b.alive?1:0)-(a.alive?1:0)||a.id.localeCompare(b.id));
+  let html='<div class="kicker">OFFICERS / 武将名鑑</div><h3>武将をタップして能力を確認</h3>'
+    +'<div class="muted">全'+all.length+'人（現役・予備役・故人を含む）。武将個人の5能力が見られます。</div>';
+  for(const o of all){
+    const nation=world.nations[o.nationId],species=world.species[o.speciesId],assignment=officerAssignment(world,o.id);
+    const post=assignment?' / '+esc(slotNames[assignment.slot])+'（'+esc(world.provinces[assignment.provinceId]?.nameJa??'')+'）':'';
+    html+='<button class="mini-row" type="button" data-officer="'+esc(o.id)+'"><div><strong>'+esc(o.nameJa)+'</strong><br><small>'+
+      esc(nation?.nameJa??'無所属')+' / '+esc(species?.nameJa??'不明')+post+'</small><br><small>'+esc(officerStatusNames[o.status]??'')+
+      ' · 武勇 '+nfmt(o.stats.martial)+' / 統率 '+nfmt(o.stats.command)+'</small></div><div style="text-align:right"><strong>'+
+      nfmt(o.age)+'歳</strong><br><small>詳細 →</small></div></button>';
   }
-  html += '<div class="notice">人物の加齢・登用・死亡・世代交代はPhase 4で実装予定。</div>';
   return html;
 }
 function speciesInfo() {
@@ -182,7 +190,7 @@ function personnelInfo() {
     html+='<div class="officer-region"><div class="data-row-top"><strong>'+esc(prov.nameJa)+'</strong><span class="light">'+OFFICER_SLOTS.filter(s=>prov.slots[s]).length+'/3人</span></div>';
     for(const slot of OFFICER_SLOTS){
       const id=prov.slots[slot],o=world.officers[id];
-      html+='<div class="office-line"><div><span class="light">'+slotNames[slot]+'</span><br><strong>'+esc(o?.nameJa??'空席')+'</strong></div><div class="office-right">'+(o?'適性 '+Math.round(officerFitness(o,slot)):'欠員')+'</div></div>';
+      html+='<div class="office-line"><div><span class="light">'+slotNames[slot]+'</span><br>'+(o?'<button type="button" class="officer-name-link" data-officer="'+esc(o.id)+'">'+esc(o.nameJa)+' →</button>':'<strong>空席</strong>')+'</div><div class="office-right">'+(o?'適性 '+Math.round(officerFitness(o,slot)):'欠員')+'</div></div>';
     }
     html+='</div>';
   }
@@ -203,6 +211,7 @@ function personnelInfo() {
     const primary=Object.entries(candidate.stats).sort((a,b)=>b[1]-a[1])[0];
     html+='<div class="candidate-card"><div class="data-row-top"><strong>'+esc(candidate.nameJa)+'</strong><b>'+esc(world.species[candidate.speciesId]?.nameJa??'')+'</b></div>'
       +'<div class="data-sub">'+candidate.age+'歳 · '+esc(primary[0])+' '+primary[1]+' / 統率 '+candidate.stats.command+' / 内政 '+candidate.stats.administration+'</div>'
+      +'<button type="button" class="officer-detail-link" data-candidate-detail="'+esc(candidate.id)+'">能力を詳しく見る →</button>'
       +'<div class="candidate-abilities">'+
        Object.entries(candidate.stats).map(([k,v])=>'<span>'+esc(({martial:'武勇',command:'統率',intellect:'知略',administration:'内政',diplomacy:'外交'})[k])+' '+v+'</span>').join('')
       +'</div><label class="candidate-label" for="target-'+esc(candidate.id)+'">採用先・交代する役職</label>'
@@ -213,6 +222,7 @@ function personnelInfo() {
   if(!reserve.length)html+='<div class="muted">予備役はいません。</div>';
   for(const officer of reserve){
     html+='<div class="candidate-card"><div class="data-row-top"><strong>'+esc(officer.nameJa)+'</strong><span class="light">'+esc(world.species[officer.speciesId]?.nameJa??'')+'</span></div>'
+      +'<button type="button" class="officer-detail-link" data-officer="'+esc(officer.id)+'">武将の能力を見る →</button>'
       +'<div class="data-sub">'+officer.age+'歳 / 武勇 '+officer.stats.martial+' / 統率 '+officer.stats.command+' / 内政 '+officer.stats.administration+'</div>'
       +'<select class="candidate-select" id="assign-'+esc(officer.id)+'">'+targetOptions(false)+'</select>'
       +'<button class="hire-btn" data-assign="'+esc(officer.id)+'">地域へ配置する</button></div>';
@@ -220,12 +230,61 @@ function personnelInfo() {
   html+='<h4>敵国から獲得した捕虜</h4>';
   if(!captives.length)html+='<div class="muted">現在は捕虜がいません。敵国滅亡後の獲得処理は今後の戦争システムで発生します。</div>';
   for(const officer of captives){
-    html+='<div class="candidate-card"><strong>'+esc(officer.nameJa)+'</strong><div class="data-sub">'+esc(world.species[officer.speciesId]?.nameJa??'')+' / 統率 '+officer.stats.command+'</div>'
+    html+='<div class="candidate-card"><strong>'+esc(officer.nameJa)+'</strong><button type="button" class="officer-detail-link" data-officer="'+esc(officer.id)+'">武将の能力を見る →</button><div class="data-sub">'+esc(world.species[officer.speciesId]?.nameJa??'')+' / 統率 '+officer.stats.command+'</div>'
       +'<select class="candidate-select" id="captive-'+esc(officer.id)+'">'+targetOptions()+'</select>'
       +'<button class="hire-btn" data-recruit-captive="'+esc(officer.id)+'">旧敵将を登用する</button></div>';
   }
   return html;
 }
+
+function officerDetailInfo() {
+  if(!selectedOfficer)return '<div class="notice">武将を選択してください。</div>';
+  let p;
+  try{
+    p=selectedOfficer.kind==='candidate'?getCandidateProfile(world,selectedOfficer.id):getOfficerProfile(world,selectedOfficer.id);
+  }catch{
+    return '<button class="backlink" data-officer-back="1">← 戻る</button><div class="notice">この人物のデータは更新され、現在は表示できません。</div>';
+  }
+  const isCandidate=p.kind==='candidate',assignment=p.assignment;
+  const slotLabel=assignment?slotNames[assignment.slot]:'なし';
+  const provinceName=assignment?world.provinces[assignment.provinceId]?.nameJa??assignment.provinceId:'未配属';
+  const status=isCandidate?'登用候補':officerStatusNames[p.status]??p.status;
+  const title=isCandidate?'CANDIDATE / 登用候補':'OFFICER / 武将詳細';
+  const statRows=Object.entries(officerStatNames).map(([key,label])=>{
+    const val=p.stats[key];
+    return '<div class="officer-ability"><span>'+label+'</span>'+reportBar(val,officerStatColors[key])+
+       '<strong>'+nfmt(val)+'</strong></div>';
+  }).join('');
+  let html='<button class="backlink" data-officer-back="1">← '+(returnOfficerTab==='region'?'地域情報':returnOfficerTab==='personnel'?'人事・登用':'武将名鑑')+'へ戻る</button>'
+    +'<div class="kicker">'+title+'</div><h3>'+esc(p.nameJa)+'</h3>'
+    +'<div class="officer-tags"><span>'+esc(p.speciesNameJa)+'</span><span>'+esc(status)+'</span><span>'+esc(p.age)+'歳</span></div>'
+    +'<div class="stats">'+metric('忠誠',nfmt(p.loyalty)+' / 100')+metric('経験',nfmt(p.experience))+'</div>'
+    +'<h4>個人ステータス（0〜100）</h4><div class="stat-chart">'+statRows+'</div>'
+    +'<h4>役職適性</h4><div class="stat-chart">';
+  for(const a of p.fits) {
+    html+='<div class="officer-ability"><span>'+esc(slotNames[a.slot])+'</span>'+
+      reportBar(a.fitness,a.slot==='governor'?'#7dbba2':a.slot==='military'?'#d58777':'#8aaec9')+
+      '<strong>'+a.fitness.toFixed(1)+'</strong></div>';
+  }
+  html+='</div><div class="notice">最も向いている役職：'+esc(slotNames[p.bestSlot])+'。適性は個人の5能力から計算した参考値で、種族の8能力とは別です。</div>'
+    +'<h4>所属・経歴</h4>'
+    +row('所属国家',p.nationNameJa)+row('現在の役職',slotLabel)
+    +row('任地',provinceName)+row('状態',status)
+    +(isCandidate?row('候補登場年','世界暦 '+p.year+'年'):'')
+    +row('特性',p.traits.length?p.traits.map(x=>traitNames[x]??x).join('・'):'なし')
+    +(!isCandidate?row('指揮軍団',p.armyIds.length?p.armyIds.join('・'):'なし'):'')
+    +'<button class="backlink" data-species="'+esc(p.speciesId)+'">種族の8能力を見る →</button>';
+  if(!isCandidate){
+    html+='<h4>人物の歴史</h4>';
+    if(!p.events.length)html+='<div class="muted">この武将の記録済みイベントはまだありません。</div>';
+    for(const event of p.events){
+      const y=Math.floor(event.monthIndex/12),m=event.monthIndex%12+1;
+      html+='<div class="history-person"><small>世界暦 '+y+'年 '+m+'月</small><div>'+esc(event.summaryJa)+'</div></div>';
+    }
+  }
+  return html;
+}
+
 function historyInfo() {
   let html = '<div class="kicker">CHRONICLE / 世界年表</div><h3>歴史の記録</h3>';
   const events = world.events.slice(-50).reverse();
@@ -238,10 +297,25 @@ function historyInfo() {
   return html;
 }
 function renderPanel() {
-  const views={region:regionInfo,nations:nationInfo,officers:officersInfo,species:speciesInfo,history:historyInfo,personnel:personnelInfo};
+  const views={region:regionInfo,nations:nationInfo,officers:officersInfo,species:speciesInfo,history:historyInfo,personnel:personnelInfo,officerDetail:officerDetailInfo};
   const panel=$('panel'),scroll=panel.scrollTop;
   panel.innerHTML=(views[selectedTab]||regionInfo)();
   panel.scrollTop=scroll;
+  panel.querySelectorAll('[data-officer]').forEach(button=>button.addEventListener('click',()=>{
+    if(!world.officers[button.dataset.officer])return;
+    selectedOfficer={kind:'officer',id:button.dataset.officer};
+    returnOfficerTab=selectedTab;returnOfficerScroll=panel.scrollTop;
+    selectedTab='officerDetail';panel.scrollTop=0;render();
+  }));
+  panel.querySelectorAll('[data-candidate-detail]').forEach(button=>button.addEventListener('click',()=>{
+    if(!world.officerCandidates[button.dataset.candidateDetail])return;
+    selectedOfficer={kind:'candidate',id:button.dataset.candidateDetail};
+    returnOfficerTab=selectedTab;returnOfficerScroll=panel.scrollTop;
+    selectedTab='officerDetail';panel.scrollTop=0;render();
+  }));
+  panel.querySelectorAll('[data-officer-back]').forEach(button=>button.addEventListener('click',()=>{
+    selectedTab=returnOfficerTab;selectedOfficer=null;panel.scrollTop=returnOfficerScroll;render();
+  }));
   panel.querySelectorAll('[data-nation]').forEach(button=>button.addEventListener('click',()=>{
     const nation=world.nations[button.dataset.nation];
     if(!nation)return;
@@ -394,7 +468,7 @@ async function importFromInput(event) {
   try {
     const content = await file.text();
     const imported = importSave(content);
-    world = imported; selectedProvince = Object.keys(world.provinces)[0]; selectedTab = 'region'; selectedNationId=null; selectedSpeciesId=null;
+    world = imported; selectedProvince = Object.keys(world.provinces)[0]; selectedTab = 'region'; selectedNationId=null; selectedSpeciesId=null; selectedOfficer=null;
     refillNations(); saveBrowser(); render(); notify('JSONデータを読み込みました。');
   } catch(error) {notify('読込失敗: ' + String(error?.message ?? error),true);}
   event.target.value = '';
@@ -439,7 +513,7 @@ $('import').addEventListener('click',()=>$('import-file').click());
 $('import-file').addEventListener('change',importFromInput);
 $('reset').addEventListener('click',() => {
   if (!confirm('試作世界を初期化します。現在の進行データは失われます。よろしいですか？')) return;
-  stop(); world=createWorld(12345); selectedProvince='province_001'; selectedTab='region'; selectedNationId=null; selectedSpeciesId=null;
+  stop(); world=createWorld(12345); selectedProvince='province_001'; selectedTab='region'; selectedNationId=null; selectedSpeciesId=null; selectedOfficer=null;
   refillNations(); saveBrowser(); render(); notify('世界を初期状態に戻しました。');
 });
 window.addEventListener('pagehide',saveBrowser);

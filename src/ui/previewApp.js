@@ -359,6 +359,7 @@ function applyStrategy() {
   const nationId = $('nation-select').value;
   const strategy = $('strategy-select').value;
   if (!world.nations[nationId]) return notify('国が見つかりません',true);
+  const previousMode=world.player.mode,previousNation=world.player.selectedNationId;
   const draft = cloneWorld(world);
   draft.player.mode = 'intervention';
   draft.player.selectedNationId = nationId;
@@ -370,7 +371,7 @@ function applyStrategy() {
     const result = advanceMonth(draft,[order]);
     if (result.rejectedOrders.length) return notify(result.rejectedOrders[0].reason,true);
     world = result.world;
-    world.player.mode = 'observer'; world.player.selectedNationId = null;
+    world.player.mode=previousMode; world.player.selectedNationId=previousNation;
     const name = world.nations[nationId].nameJa;
     selectedTab = 'history'; saveBrowser(); render();
     notify(name + 'の方針を「' + (strategies[strategy] ?? strategy) + '」に変更。1か月進行し、観察モードに戻りました。');

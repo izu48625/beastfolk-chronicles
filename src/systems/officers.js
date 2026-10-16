@@ -19,7 +19,7 @@ function chooseSpecies(world,nationId,rng){
   const weights=speciesWeight(world,nationId);
   const total=weights.reduce((s,x)=>s+x[1],0);
   if(total===0)return Object.keys(world.species).sort()[0];
-  let roll=rng.nextInt(1,total);
+  let roll=rng.nextFloat()*total;
   for(const [id,amount] of weights){roll-=amount;if(roll<=0)return id;}
   return weights[0][0];
 }
@@ -78,8 +78,12 @@ export function assignOfficer(world,nationId,officerId,provinceId,slot,{issuer='
   if(old===officerId)return null;
   const previous=officerAssignment(world,officerId);
   if(previous)world.provinces[previous.provinceId].slots[previous.slot]=null;
-  if(old)world.officers[old].status='reserve';
+  if(old){
+    world.officers[old].status='reserve';
+    if(world.officers[old].role!=='ruler')world.officers[old].role='unassigned';
+  }
   prov.slots[slot]=officerId;officer.status='active';
+  if(officer.role!=='ruler')officer.role=slot==='governor'?'administrator':slot==='military'?'general':'diplomat';
   return appendEvent(world,'officer_assigned',officer.nameJa+'が'+prov.nameJa+'の'+labels[slot]+'に就任した',
     [nationId],[officerId],{provinceId,slot,replacedOfficerId:old,previous,issuer});
 }

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#121c27">
+  <meta name="description" content="獣界年代記 — 獣人文明・国家興亡シミュレーション。Phase 0の操作可能なブラウザ試作版です。">
+  <title>獣界年代記 | BEASTFOLK CHRONICLES</title>
+  <style>
+    :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;background:#0b1420;color:#e6ecf0}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 60% -25%,#2d4651 0%,#101d2a 48%,#0b1420 95%);min-height:100dvh}
+    button,select{font:inherit}button{cursor:pointer;color:inherit}button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid #dec88c;outline-offset:3px}
+    .layout{max-width:1270px;margin:0 auto;padding:16px 18px calc(24px + env(safe-area-inset-bottom))}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .eyebrow{font-size:10px;letter-spacing:.22em;color:#b9ad86;font-weight:800}.brand{display:flex;gap:10px;align-items:center}
+    .emblem{border:1px solid #b2a36b;border-radius:13px;width:44px;height:44px;display:grid;place-items:center;font-size:24px;background:linear-gradient(145deg,#384434,#1b2730)}
+    h1{font-family:Georgia,"Hiragino Mincho ProN",serif;letter-spacing:.09em;font-size:25px;line-height:1.2;margin:2px 0}.subtitle{color:#91a1ac;font-size:11px}
+    .pill{border:1px solid #55606a;padding:7px 9px;border-radius:30px;white-space:nowrap;color:#dec88c;font-size:11px;font-weight:700;background:#16222e}
+    .intro{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+    .intro p{color:#98aab4;font-size:12px;margin:0;line-height:1.7}.date{color:#dfc887;font-family:Georgia,serif;font-size:21px;white-space:nowrap}
+    .controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:12px;background:#172534;box-shadow:inset 0 1px 0 #ffffff0b;border:1px solid #2a3d49;border-radius:13px;margin-bottom:13px}
+    .controls .hint{font-size:11px;color:#9baeb8;margin-right:auto}.controls button,.actions button,.tab,.secondary{background:#243442;border:1px solid #455462;border-radius:9px;min-height:39px;padding:9px 12px;font-size:13px;font-weight:700}
+    .controls button.active,.tab.active{background:#796c4c;color:#fff8dc;border-color:#bda56b}.controls button:hover,.actions button:hover,.tab:hover{border-color:#cfbd8a}
+    .grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.85fr);gap:13px}
+    .card{background:#162331;border:1px solid #30414d;border-radius:15px;overflow:hidden;box-shadow:0 8px 28px #0002}
+    .card-head{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:13px 15px;border-bottom:1px solid #30414d}
+    .card-head h2{font-size:15px;letter-spacing:.05em;margin:0}.muted{color:#98a9b4;font-size:12px}
+    .map-holder{padding:6px;background:radial-gradient(ellipse at center,#203b49,#101f2d)}
+    svg.map{width:100%;display:block;aspect-ratio:780/510;user-select:none;touch-action:manipulation}
+    .province{stroke:#d7d1b36b;stroke-width:3;stroke-linejoin:round;cursor:pointer;transition:stroke-width .12s,filter .12s}
+    .province:hover{filter:brightness(1.13)}.province.selected{stroke:#f7e6ad;stroke-width:6;filter:drop-shadow(0 0 7px #e6cb76)}
+    .map-label{font:700 18px system-ui,sans-serif;fill:#fff7da;pointer-events:none;paint-order:stroke;stroke:#16212dc9;stroke-width:4px}
+    .map-small{font:500 12px system-ui,sans-serif;fill:#e3decd;pointer-events:none;paint-order:stroke;stroke:#16212d;stroke-width:3}
+    .water-text{fill:#7da3ae7e;font:italic 18px Georgia,serif;letter-spacing:.2em}
+    .legend{display:flex;gap:12px;flex-wrap:wrap;padding:11px 14px;border-top:1px solid #324553;font-size:11px;color:#c5d1d7}
+    .dot{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px}
+    .aside{display:flex;flex-direction:column;min-width:0}.tabs{display:flex;gap:4px;overflow:auto;scrollbar-width:none;padding:9px;border-bottom:1px solid #33434d}.tabs::-webkit-scrollbar{display:none}
+    .tab{padding:8px 11px;min-height:36px;font-size:11px;white-space:nowrap;flex-shrink:0}
+    .panel{padding:16px;min-height:290px;max-height:560px;overflow:auto}
+    .panel h3{font-size:18px;margin:1px 0 8px}.panel h4{font-size:12px;color:#c6b17a;letter-spacing:.1em;margin:18px 0 9px}
+    .kicker{font-size:11px;color:#b7a574;margin-bottom:7px;font-weight:700}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+    .stat{padding:11px;background:#202f3c;border:1px solid #354754;border-radius:9px}.stat span{display:block;color:#9aadb7;font-size:10px}.stat strong{display:block;margin-top:5px;font-size:18px;font-variant-numeric:tabular-nums}
+    .info-row{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #34434b;padding:10px 0;font-size:12px}.info-row span:first-child{color:#a9b8c1}.info-row b{text-align:right}
+    .mini-row{padding:11px 12px;background:#1d2e3d;border:1px solid #364852;border-radius:10px;margin:7px 0;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left}
+    .mini-row small{color:#a9bdc7;font-size:11px}.mini-row strong{font-size:13px}.mini-row:hover{border-color:#ad9660}
+    .tag{border:1px solid #586273;color:#d4dfe3;border-radius:6px;padding:4px 6px;font-size:10px}
+    .notice{background:#29333b;border-left:3px solid #be9d61;padding:11px 12px;color:#d1d7da;font-size:11px;line-height:1.7;border-radius:5px;margin-top:14px}
+    .below{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:13px}
+    .actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:13px}
+    .actions button{min-height:38px}.actions label{display:block;color:#acb9c1;font-size:11px}.actions select{border:1px solid #67727b;border-radius:9px;padding:10px;color:#f6ead1;background:#2d3b45;min-height:40px}
+    .longline{font-size:12px;color:#bdc9ce;line-height:1.8;padding:0 14px 14px;margin:0}
+    .status{font-size:11px;color:#9ccbb8;margin:0 14px 14px;min-height:16px}
+    .footer{color:#7d919d;font-size:11px;line-height:1.7;margin-top:15px;text-align:center}
+    .screen-reader{position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden}
+    @media(max-width:780px){.layout{padding:11px 10px calc(24px + env(safe-area-inset-bottom))}h1{font-size:22px}.brand{gap:8px}.emblem{height:38px;width:38px}.pill{font-size:10px;padding:6px}.grid,.below{grid-template-columns:1fr}.map-holder{padding:0}svg.map{aspect-ratio:780/510}.panel{max-height:none;min-height:230px}.controls .hint{width:100%}.controls button{flex:1;min-width:54px;padding:9px 6px}.intro{display:block}.date{margin-top:6px;font-size:17px}.map-label{font-size:22px}.subtitle{font-size:10px}}
+    @media(prefers-reduced-motion:reduce){.province{transition:none}}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <div class="brand"><div class="emblem" aria-hidden="true">♜</div><div>
+        <div class="eyebrow">BEASTFOLK CHRONICLES</div><h1>獣界年代記</h1><div class="subtitle">文明興亡・国取りシミュレーション</div>
+      </div></div>
+      <span class="pill">P0 操作試作版</span>
+    </header>
+    <div class="intro"><p>４地域・２国家でエンジン接続を検証するプレビュー。<strong>戦争・内政・国境変化は今後実装</strong>します。</p><div class="date" id="calendar">世界暦 0年 1月</div></div>
+    <div class="controls" role="group" aria-label="時間操作">
+      <div class="hint" id="runtime-note">▶ を押すと月が進みます。時代の変化は今後実装。</div>
+      <button id="pause" type="button" class="active">⏸ 停止</button><button id="speed1" type="button">▶ 1×</button><button id="speed5" type="button">▶ 5×</button><button id="speed20" type="button">▶ 20×</button><button id="step" type="button">＋1月</button>
+    </div>
+    <main class="grid">
+      <section class="card">
+        <div class="card-head"><h2>未知の大陸 · 国境図</h2><span class="muted">地域をタップして調査</span></div>
+        <div class="map-holder">
+          <svg class="map" viewBox="0 0 780 510" role="img" aria-label="東西に連なる4つの試験地域を描いた国境地図">
+            <defs>
+              <pattern id="waves" width="42" height="40" patternUnits="userSpaceOnUse"><path d="M3 18q9-7 18 0t18 0" fill="none" stroke="#7bb0be" stroke-opacity=".12" stroke-width="1.3"/></pattern>
+              <pattern id="forest" width="50" height="55" patternUnits="userSpaceOnUse"><path d="M12 26l9-17 9 17h-6l6 10H12l6-10z" fill="#192d2a" opacity=".22"/></pattern>
+              <pattern id="hills" width="64" height="54" patternUnits="userSpaceOnUse"><path d="M2 40l20-28 20 28m-15 0l20-22 15 22" stroke="#182536" stroke-opacity=".28" fill="none" stroke-width="5"/></pattern>
+            </defs>
+            <rect width="780" height="510" fill="#18313f"/><rect width="780" height="510" fill="url(#waves)"/>
+            <text class="water-text" x="86" y="455">THE GRAY SEA</text><text class="water-text" x="485" y="63">THE NORTHERN REACH</text>
+            <g id="provinces">
+              <path class="province" data-province="province_001" d="M56 239 L45 183 93 96 149 93 207 132 211 211 188 316 127 359 71 323Z"/>
+              <path class="province" data-province="province_002" d="M207 132 L258 108 318 132 358 191 353 279 316 357 261 367 188 316 211 211Z"/>
+              <path class="province" data-province="province_003" d="M358 191 L419 140 475 154 537 196 555 283 506 361 437 394 316 357 353 279Z"/>
+              <path class="province" data-province="province_004" d="M537 196 L588 139 649 132 707 194 723 277 685 341 621 372 555 283Z"/>
+            </g>
+            <path d="M106 141q22 28 30 50m93 82q22-19 40-8m160-40q32 12 51 43m125-56l32-18" fill="none" stroke="#f9dfac" stroke-opacity=".32" stroke-dasharray="6 8" stroke-width="3" pointer-events="none"/>
+            <text class="map-label" x="127" y="223" text-anchor="middle">北熊平原</text><text class="map-small" x="127" y="247" text-anchor="middle">赤熊王国</text>
+            <text class="map-label" x="278" y="235" text-anchor="middle">東の森</text><text class="map-small" x="278" y="259" text-anchor="middle">赤熊王国</text>
+            <text class="map-label" x="452" y="260" text-anchor="middle">西の境界</text><text class="map-small" x="452" y="284" text-anchor="middle">白犬連邦</text>
+            <text class="map-label" x="625" y="256" text-anchor="middle">白犬高原</text><text class="map-small" x="625" y="280" text-anchor="middle">白犬連邦</text>
+          </svg>
+        </div>
+        <div class="legend" id="legend"></div>
+      </section>
+      <section class="card aside">
+        <div class="tabs" role="tablist" aria-label="情報表示">
+          <button class="tab active" data-tab="region" role="tab">地域</button>
+          <button class="tab" data-tab="nations" role="tab">国家</button>
+          <button class="tab" data-tab="officers" role="tab">武将</button>
+          <button class="tab" data-tab="species" role="tab">種族</button>
+          <button class="tab" data-tab="history" role="tab">年表</button>
+        </div>
+        <div id="panel" class="panel" aria-live="polite"></div>
+      </section>
+    </main>
+    <section class="below">
+      <div class="card">
+        <div class="card-head"><h2>国家への介入</h2><span class="muted">Phase 0 実装機能</span></div>
+        <p class="longline" style="padding-top:12px">方針を変更すると正式な命令として月次エンジンへ渡し、履歴に記録します。戦争・徴兵などはまだ使えません。</p>
+        <div class="actions"><label for="nation-select">対象国家</label><select id="nation-select"></select><label for="strategy-select">国家方針</label><select id="strategy-select">
+          <option value="balanced">均衡重視</option><option value="expansion">拡張重視</option><option value="domestic">内政重視</option><option value="trade">商業重視</option><option value="defense">防衛重視</option><option value="diplomacy">外交重視</option>
+        </select><button id="apply-strategy" type="button">方針を指示</button></div>
+        <div id="status" class="status" role="status"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>世界データ</h2><span class="muted">ローカル保存</span></div>
+        <p class="longline" style="padding-top:12px">この試作版ではブラウザの一時保存とJSON出力が使えます。本実装予定のIndexedDBとは異なります。</p>
+        <div class="actions">
+          <button id="download" type="button">↓ JSON保存</button>
+          <button id="import" type="button">↑ JSON読込</button>
+          <input class="screen-reader" id="import-file" type="file" accept=".json,application/json">
+          <button id="reset" type="button" class="secondary">世界を初期化</button>
+        </div>
+      </div>
+    </section>
+    <div class="footer">獣界年代記 — Phase 0 / 4地域・2国家・2種族。地図はプレビュー用のオリジナル図形で、MVPの50地域地図ではありません。<br>無料・外部API不使用・シミュレーション処理は端末内。</div>
+  </div>
+  <script type="module" src="./src/ui/previewApp.js"></script>
+</body>
+</html>

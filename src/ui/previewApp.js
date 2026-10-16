@@ -2,6 +2,7 @@
 import {createWorld, cloneWorld, getNationSummary, totalPopulation, totalTroops} from '../core/world.js';
 import {advanceMonth} from '../core/engine.js';
 import {exportSave, importSave} from '../core/save.js';
+import {getNationDemographics, getSpeciesDemographics} from '../core/demographics.js';
 
 const $ = id => document.getElementById(id);
 const nfmt = value => new Intl.NumberFormat('ja-JP').format(value);
@@ -9,10 +10,16 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp
 const strategies = {balanced:'均衡重視',expansion:'拡張重視',domestic:'内政重視',trade:'商業重視',defense:'防衛重視',diplomacy:'外交重視'};
 const terrainNames = {plains:'平原',forest:'森林',hills:'丘陵',mountains:'山岳',wetlands:'湿地',snowfields:'雪原',coast:'沿岸'};
 const govNames = {kingdom:'王国',federation:'連邦',republic:'共和国',tribe:'部族'};
+const statNames={dom:'内政',eco:'経済',pow:'武力',def:'防御',mob:'機動',rec:'斥候',log:'兵站',dip:'外交'};
+const dietNames={omnivore:'雑食',herbivore:'草食',carnivore:'肉食'};
+const traitNames={keen_smell:'鋭い嗅覚',heavy_food_demand:'大量の食糧を消費',cold_resistance:'耐寒',heat_sensitive:'暑さに弱い',forest_adapted:'森林適応'};
+const statColors={dom:'#7dbba2',eco:'#a9ad77',pow:'#d58777',def:'#8aaec9',mob:'#e4b76f',rec:'#9fbb8b',log:'#c6ac8c',dip:'#9a9ac8'};
 const storageKey = 'beastfolk-p0-preview-v1';
 let world;
 let selectedProvince = 'province_001';
 let selectedTab = 'region';
+let selectedNationId = null;
+let selectedSpeciesId = null;
 let speed = 0;
 let timer = null;
 
@@ -35,42 +42,69 @@ function allNations() { return Object.values(world.nations).filter(n => n.alive)
 function armyInProvince(prov) {
   return prov.garrisonArmyIds.map(id => world.armies[id]).filter(Boolean);
 }
+
+function reportBar(percent,color='#bba778'){
+  const value=Math.max(0,Math.min(100,Number(percent)||0));
+  return '<div class="popbar" aria-hidden="true"><div class="popfill" style="width:'+value.toFixed(2)+'%;background:'+color+'"></div></div>';
+}
+function metric(label,value){return '<div class="stat"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong></div>';}
+function row(label,value){return '<div class="info-row"><span>'+esc(label)+'</span><b>'+esc(value)+'</b></div>';}
+function percentText(v){return (Math.round(v*10)/10).toFixed(1)+'%';}
+function renderSpeciesRow(speciesId, counts, percentage){
+  const species = world.species[speciesId];
+  return '<button class="data-row" data-species="'+esc(speciesId)+'"><div class="data-row-top"><strong>'+esc(species?.nameJa??speciesId)+'</strong><b>'+nfmt(counts.total)+'人 <span class="light">('+percentText(percentage)+')</span></b></div>'
+    +reportBar(percentage)+'<div class="data-sub">住民 '+nfmt(counts.civilians)+'人 / 兵士 '+nfmt(counts.military)+'人</div></button>';
+}
+
 function regionInfo() {
   const prov = world.provinces[selectedProvince] ?? Object.values(world.provinces)[0];
   if (!prov) return '<p>表示可能な地域がありません。</p>';
   const nation = world.nations[prov.ownerNationId];
   const troops = armyInProvince(prov).reduce((sum, army) => sum + totalTroops(army), 0);
   const population = totalPopulation(prov);
-  const mainSpecies = Object.entries(prov.populationBySpecies).sort((a,b) => b[1]-a[1])[0];
-  const sp = mainSpecies ? world.species[mainSpecies[0]] : null;
-  let rows = '';
-  const info = [
-    ['領有国',nation?.nameJa ?? '中立'],
-    ['地形',terrainNames[prov.terrain] ?? prov.terrain],
-    ['主要種族',sp?.nameJa ?? '不明'],
-    ['開発度',nfmt(prov.development)],
-    ['城レベル',nfmt(prov.fortLevel)],
-    ['治安',nfmt(prov.publicOrder) + '/100'],
-    ['隣接地域',prov.neighbors.map(id => world.provinces[id]?.nameJa || id).join('・')],
-  ];
-  for (const [key,value] of info) rows += '<div class="info-row"><span>' + esc(key) + '</span><b>' + esc(value) + '</b></div>';
-  return '<div class="kicker">PROVINCE / REGION</div><h3>' + esc(prov.nameJa) + '</h3>' +
-    '<span class="tag">' + esc(nation?.nameJa ?? '中立') + '</span>' +
-    '<div class="stats"><div class="stat"><span>住民人口</span><strong>' + nfmt(population) + '</strong></div><div class="stat"><span>駐留兵数</span><strong>' + nfmt(troops) + '</strong></div></div>' + rows +
-    '<div class="notice">この地図はPhase 0の接続試験用です。国境を動かす戦闘はPhase 3で実装予定。</div>';
+  const entries = Object.entries(prov.populationBySpecies).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+  let html='<div class="kicker">PROVINCE / REGION</div><h3>'+esc(prov.nameJa)+'</h3>'
+    +'<button class="backlink" data-nation="'+esc(nation?.id??'')+'">領有国：'+esc(nation?.nameJa??'中立')+' →</button>'
+    +'<div class="stats">'+metric('民間人口',nfmt(population)+' 人')+metric('駐留兵数',nfmt(troops)+' 人')+'</div>';
+  html+=row('地形',terrainNames[prov.terrain]??prov.terrain)+row('開発度',nfmt(prov.development))
+    +row('城レベル',nfmt(prov.fortLevel))+row('治安',nfmt(prov.publicOrder)+'/100')
+    +row('隣接地域',prov.neighbors.map(id=>world.provinces[id]?.nameJa||id).join('・'));
+  html+='<h4>地域の種族別住民人口</h4>';
+  for(const [id,pop] of entries){
+    html+='<button class="data-row" data-species="'+esc(id)+'"><div class="data-row-top"><strong>'+esc(world.species[id]?.nameJa??id)+'</strong><b>'+nfmt(pop)+'人 <span class="light">('+percentText(population?pop/population*100:0)+')</span></b></div>'
+      +reportBar(population?pop/population*100:0)+ '</button>';
+  }
+  return html+'<div class="notice">現在は初期固定人口です。出生・移住・戦争による増減は後続Phaseで実装します。</div>';
 }
 function nationInfo() {
-  let html = '<div class="kicker">NATIONS / 国家一覧</div><h3>勢力と国力</h3>';
-  for (const nation of allNations()) {
-    const s = getNationSummary(world,nation.id);
-    const ruler = world.officers[nation.rulerOfficerId];
-    html += '<button class="mini-row" data-nation="' + esc(nation.id) + '"><div>' +
-      '<strong><span class="dot" style="background:' + esc(nation.color) + '"></span>' + esc(nation.nameJa) + '</strong><br><small>君主: ' + esc(ruler?.nameJa ?? '不明') + ' / ' + esc(strategies[nation.strategy] ?? nation.strategy) + '</small>' +
-      '</div><div style="text-align:right"><strong>' + nfmt(s.provinceCount) + '地域</strong><br><small>人口 ' + nfmt(s.population) + '</small></div></button>';
+  if (selectedNationId && world.nations[selectedNationId]) {
+    const n=world.nations[selectedNationId];
+    const demo=getNationDemographics(world,n.id), ruler=world.officers[n.rulerOfficerId];
+    const capital=world.provinces[n.capitalProvinceId];
+    let html='<button class="backlink" data-back="nations">← 国家一覧</button>'
+      +'<div class="kicker">NATION / 国内情勢</div><h3><span class="dot" style="background:'+esc(n.color)+'"></span>'+esc(n.nameJa)+'</h3>'
+      +'<div class="muted">'+esc(govNames[n.government]??n.government)+' / 君主 '+esc(ruler?.nameJa??'不明')+'</div>'
+      +'<div class="stats">'+metric('国家総人口',nfmt(demo.total)+' 人')+metric('民間人口',nfmt(demo.civilians)+' 人')+
+       metric('兵士',nfmt(demo.military)+' 人')+metric('支配地域',nfmt(demo.provinceCount))+'</div>'
+      +'<h4>種族構成（住民＋兵士）</h4>';
+    for(const s of demo.speciesRows)html+=renderSpeciesRow(s.speciesId,s,s.percent);
+    html+='<h4>地域別人口</h4>';
+    for(const p of demo.regionRows)html+='<button class="mini-row" data-region="'+esc(p.provinceId)+'"><div><strong>'+esc(p.nameJa)+'</strong><br><small>主要種族 '+esc(world.species[p.mainSpeciesId]?.nameJa??'不明')+'</small></div><div style="text-align:right"><strong>'+nfmt(p.total)+'人</strong><br><small>住民 '+nfmt(p.civilians)+' / 兵 '+nfmt(p.military)+'</small></div></button>';
+    html+='<h4>内政・国力</h4>'+row('首都',capital?.nameJa??'不明')+row('政治体制',govNames[n.government]??n.government)
+      +row('政策方針',strategies[n.strategy]??n.strategy)+row('国庫',nfmt(n.treasury))
+      +row('食糧備蓄',nfmt(n.food))+row('資材',nfmt(n.materials))
+      +row('安定度',nfmt(n.stability)+'/100')
+      +row('農業技術',n.tech.agriculture)+row('工業技術',n.tech.industry)+row('軍事技術',n.tech.military)+row('医療技術',n.tech.medicine);
+    return html+'<div class="notice">国家・地域データから毎回集計しています。現段階の人口や資源は月次進行ではまだ変化しません。</div>';
   }
-  const worldPeople = Object.values(world.provinces).reduce((sum,p) => sum + totalPopulation(p),0);
-  html += '<div class="notice">現在の世界人口（民間）: ' + nfmt(worldPeople) + '。住民と兵士は別々に集計しています。</div>';
-  return html;
+  let html='<div class="kicker">NATIONS / 国家一覧</div><h3>国家を選んで国内を調べる</h3>';
+  for(const nation of allNations()){
+    const s=getNationDemographics(world,nation.id),ruler=world.officers[nation.rulerOfficerId];
+    html+='<button class="mini-row" data-nation="'+esc(nation.id)+'"><div><strong><span class="dot" style="background:'+esc(nation.color)+'"></span>'+esc(nation.nameJa)+'</strong><br><small>'+esc(ruler?.nameJa??'不明')+' / '+esc(strategies[nation.strategy]??nation.strategy)+'</small></div><div style="text-align:right"><strong>'+nfmt(s.total)+'人</strong><br><small>'+nfmt(s.provinceCount)+'地域 · '+nfmt(s.speciesRows.length)+'種族</small></div></button>';
+  }
+  const worldPeople=Object.values(world.provinces).reduce((sum,p)=>sum+totalPopulation(p),0);
+  const worldTroops=Object.values(world.armies).reduce((sum,a)=>sum+totalTroops(a),0);
+  return html+'<div class="notice">世界人口 '+nfmt(worldPeople+worldTroops)+'人（民間 '+nfmt(worldPeople)+' / 兵士 '+nfmt(worldTroops)+'）。兵士は民間人口に重複計上していません。</div>';
 }
 function officersInfo() {
   let html = '<div class="kicker">OFFICERS / 武将名鑑</div><h3>現役武将</h3>';
@@ -85,15 +119,37 @@ function officersInfo() {
   return html;
 }
 function speciesInfo() {
-  let html = '<div class="kicker">SPECIES / 種族図鑑</div><h3>獣人タイプ</h3>';
-  for (const species of Object.values(world.species)) {
-    const people = Object.values(world.provinces).reduce((sum,p) => sum+(p.populationBySpecies[species.id]??0),0);
-    const totals = Object.values(world.armies).reduce((sum,a) => sum+(a.troopsBySpecies[species.id]??0),0);
-    html += '<div class="mini-row" style="cursor:default"><div><strong>' + esc(species.nameJa) + '</strong><br><small>武力 ' + nfmt(species.stats.pow) +
-      ' / 斥候 ' + nfmt(species.stats.rec) + '</small></div><div style="text-align:right"><strong>' + nfmt(people+totals) + '</strong><br><small>世界総人口</small></div></div>';
+  if(selectedSpeciesId && world.species[selectedSpeciesId]){
+    const s=world.species[selectedSpeciesId],d=getSpeciesDemographics(world,s.id);
+    let html='<button class="backlink" data-back="species">← 種族一覧</button><div class="kicker">SPECIES / 種族図鑑</div><h3>'+esc(s.nameJa)+'</h3>'
+      +'<div class="muted">'+esc(dietNames[s.diet]??s.diet)+' / '+esc(s.familyId)+'</div>'
+      +'<div class="stats">'+metric('世界総人口',nfmt(d.total)+' 人')+metric('民間人口',nfmt(d.civilians)+' 人')+
+       metric('兵士人口',nfmt(d.military)+' 人')+metric('平均寿命の設定',nfmt(s.ecology.lifespan)+' 歳')+'</div>'
+      +'<h4>種族基礎能力（0〜100）</h4><div class="stat-chart">';
+    for(const [key,label] of Object.entries(statNames)){
+      const value=s.stats[key]??0;
+      html+='<div class="ability-row"><span>'+esc(label)+'</span>'+reportBar(value,statColors[key])+'<strong>'+nfmt(value)+'</strong></div>';
+    }
+    html+='</div><h4>生態・固有特性</h4>'
+      +row('特性',s.traits.map(t=>traitNames[t]??t).join('・')||'なし')
+      +row('食性',dietNames[s.diet]??s.diet)
+      +row('体格',nfmt(s.ecology.size))
+      +row('食糧要求',nfmt(s.ecology.foodDemand))
+      +row('成熟年齢',nfmt(s.ecology.maturityAge)+'歳')
+      +row('出生傾向',nfmt(s.ecology.birthRate))
+      +row('適応地形',s.ecology.preferredBiomes.map(k=>terrainNames[k]??k).join('・'))
+      +'<h4>所属国家の人口構成</h4>';
+    for(const n of d.nationRows){
+      html+='<button class="data-row" data-nation="'+esc(n.nationId)+'"><div class="data-row-top"><strong>'+esc(n.nameJa)+'</strong><b>'+nfmt(n.total)+'人 ('+percentText(n.percent)+')</b></div>'+reportBar(n.percent)+'<div class="data-sub">住民 '+nfmt(n.civilians)+' / 兵士 '+nfmt(n.military)+'</div></button>';
+    }
+    return html+'<div class="notice">基礎能力は種族のゲーム上の傾向で、人物個人の能力とは別です。生態の数値は今後バランス調整します。</div>';
   }
-  html += '<div class="notice">MVPでは20タイプに拡張予定。現在は契約確認用に柴犬族とヒグマ族のみを収録しています。</div>';
-  return html;
+  let html='<div class="kicker">SPECIES / 種族図鑑</div><h3>種族を選んで能力を見る</h3>';
+  for(const species of Object.values(world.species)){
+    const d=getSpeciesDemographics(world,species.id);
+    html+='<button class="mini-row" data-species="'+esc(species.id)+'"><div><strong>'+esc(species.nameJa)+'</strong><br><small>武力 '+nfmt(species.stats.pow)+' / 斥候 '+nfmt(species.stats.rec)+' / 内政 '+nfmt(species.stats.dom)+'</small></div><div style="text-align:right"><strong>'+nfmt(d.total)+'人</strong><br><small>8能力を詳しく見る →</small></div></button>';
+  }
+  return html+'<div class="notice">現在の試作版には2種族のみ登場。20種族へ拡張後もこの図鑑に自動表示されます。</div>';
 }
 function historyInfo() {
   let html = '<div class="kicker">CHRONICLE / 世界年表</div><h3>歴史の記録</h3>';
@@ -107,19 +163,31 @@ function historyInfo() {
   return html;
 }
 function renderPanel() {
-  const views = {region:regionInfo,nations:nationInfo,officers:officersInfo,species:speciesInfo,history:historyInfo};
-  $('panel').innerHTML = (views[selectedTab] || regionInfo)();
-  $('panel').querySelectorAll('[data-nation]').forEach(button => button.addEventListener('click',() => {
-    $('nation-select').value = button.dataset.nation;
-    syncStrategy();
-    const first = Object.values(world.provinces).find(p => p.ownerNationId === button.dataset.nation);
-    if (first) selectedProvince = first.id;
-    selectedTab = 'region';
-    render();
+  const views={region:regionInfo,nations:nationInfo,officers:officersInfo,species:speciesInfo,history:historyInfo};
+  const panel=$('panel'),scroll=panel.scrollTop;
+  panel.innerHTML=(views[selectedTab]||regionInfo)();
+  panel.scrollTop=scroll;
+  panel.querySelectorAll('[data-nation]').forEach(button=>button.addEventListener('click',()=>{
+    const nation=world.nations[button.dataset.nation];
+    if(!nation)return;
+    selectedNationId=nation.id;selectedTab='nations';panel.scrollTop=0;render();
+  }));
+  panel.querySelectorAll('[data-species]').forEach(button=>button.addEventListener('click',()=>{
+    if(!world.species[button.dataset.species])return;
+    selectedSpeciesId=button.dataset.species;selectedTab='species';panel.scrollTop=0;render();
+  }));
+  panel.querySelectorAll('[data-region]').forEach(button=>button.addEventListener('click',()=>{
+    if(!world.provinces[button.dataset.region])return;
+    selectedProvince=button.dataset.region;selectedTab='region';panel.scrollTop=0;render();
+  }));
+  panel.querySelectorAll('[data-back]').forEach(button=>button.addEventListener('click',()=>{
+    if(button.dataset.back==='nations')selectedNationId=null;
+    if(button.dataset.back==='species')selectedSpeciesId=null;
+    panel.scrollTop=0;render();
   }));
 }
 function syncStrategy() { $('strategy-select').value = world.nations[$('nation-select').value]?.strategy ?? 'balanced'; }
-function render() {
+function render(refreshPanel=true) {
   const year = Math.floor(world.monthIndex / 12), month = world.monthIndex % 12 + 1;
   $('calendar').textContent = '世界暦 ' + nfmt(year) + '年 ' + month + '月';
   for (const path of document.querySelectorAll('[data-province]')) {
@@ -132,7 +200,7 @@ function render() {
   $('legend').innerHTML = allNations().map(n => '<span><i class="dot" style="background:' + esc(n.color) + '"></i>' + esc(n.nameJa) + '</span>').join('');
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active',b.dataset.tab === selectedTab));
   ['pause','speed1','speed5','speed20'].forEach(id => $(id).classList.toggle('active',(id==='pause' && speed===0)||(id==='speed'+speed)));
-  renderPanel();
+  if(refreshPanel)renderPanel();
 }
 function runMonth(orders = []) {
   try {
@@ -140,7 +208,7 @@ function runMonth(orders = []) {
     world = result.world;
     if (result.rejectedOrders.length) notify(result.rejectedOrders[0].reason,true);
     if (world.monthIndex % 12 === 0 || orders.length) saveBrowser();
-    render();
+    render(speed===0 || orders.length>0 || world.monthIndex%12===0);
     return result;
   } catch(error) {
     stop();
@@ -197,7 +265,7 @@ async function importFromInput(event) {
   try {
     const content = await file.text();
     const imported = importSave(content);
-    world = imported; selectedProvince = Object.keys(world.provinces)[0]; selectedTab = 'region';
+    world = imported; selectedProvince = Object.keys(world.provinces)[0]; selectedTab = 'region'; selectedNationId=null; selectedSpeciesId=null;
     refillNations(); saveBrowser(); render(); notify('JSONデータを読み込みました。');
   } catch(error) {notify('読込失敗: ' + String(error?.message ?? error),true);}
   event.target.value = '';
@@ -237,7 +305,7 @@ $('import').addEventListener('click',()=>$('import-file').click());
 $('import-file').addEventListener('change',importFromInput);
 $('reset').addEventListener('click',() => {
   if (!confirm('試作世界を初期化します。現在の進行データは失われます。よろしいですか？')) return;
-  stop(); world=createWorld(12345); selectedProvince='province_001'; selectedTab='region';
+  stop(); world=createWorld(12345); selectedProvince='province_001'; selectedTab='region'; selectedNationId=null; selectedSpeciesId=null;
   refillNations(); saveBrowser(); render(); notify('世界を初期状態に戻しました。');
 });
 window.addEventListener('pagehide',saveBrowser);

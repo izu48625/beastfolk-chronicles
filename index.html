@@ -55,6 +55,25 @@
     .screen-reader{position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden}
     @media(max-width:780px){.layout{padding:11px 10px calc(24px + env(safe-area-inset-bottom))}h1{font-size:22px}.brand{gap:8px}.emblem{height:38px;width:38px}.pill{font-size:10px;padding:6px}.grid,.below{grid-template-columns:1fr}.map-holder{padding:0}svg.map{aspect-ratio:780/510}.panel{max-height:none;min-height:230px}.controls .hint{width:100%}.controls button{flex:1;min-width:54px;padding:9px 6px}.intro{display:block}.date{margin-top:6px;font-size:17px}.map-label{font-size:22px}.subtitle{font-size:10px}}
     @media(prefers-reduced-motion:reduce){.province{transition:none}}
+
+    /* Early nation demographics & species encyclopedia — mobile first */
+    .backlink{display:inline-block;border:1px solid #697b7d;border-radius:9px;background:#233644;color:#e6dcbb;padding:9px 12px;margin:0 0 13px;font-size:12px;min-height:38px;text-align:left}
+    .backlink:focus-visible,.data-row:focus-visible{outline:2px solid #efd390;outline-offset:3px}
+    .data-row{width:100%;display:block;text-align:left;cursor:pointer;border:1px solid #3c515c;background:#1b2c38;border-radius:10px;padding:11px 12px;margin:7px 0;min-height:58px}
+    .data-row:hover,.backlink:hover{border-color:#c7ac6d;background:#233747}
+    .data-row-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+    .data-row-top strong{font-weight:700;min-width:0;overflow-wrap:anywhere}
+    .data-row-top b{white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums}
+    .light,.data-sub{color:#9eb4c0;font-weight:400}
+    .data-sub{font-size:11px;margin-top:5px}
+    .popbar{width:100%;height:8px;border-radius:8px;overflow:hidden;background:#0f1b25;margin-top:8px}
+    .popfill{height:100%;border-radius:8px;min-width:0}
+    .stat-chart{padding:11px;background:#1b2a36;border:1px solid #3b4a53;border-radius:10px}
+    .ability-row{display:grid;grid-template-columns:34px minmax(0,1fr) 26px;align-items:center;gap:8px;margin:10px 0;font-size:11px}
+    .ability-row .popbar{margin:0;height:10px}
+    .ability-row strong{text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+    .panel .stat strong{font-size:16px;overflow-wrap:anywhere}
+    @media(max-width:780px){.panel{padding:13px}.data-row{min-height:61px}.ability-row{grid-template-columns:35px minmax(0,1fr) 30px}}
   </style>
 </head>
 <body>
@@ -100,9 +119,9 @@
       <section class="card aside">
         <div class="tabs" role="tablist" aria-label="情報表示">
           <button class="tab active" data-tab="region" role="tab">地域</button>
-          <button class="tab" data-tab="nations" role="tab">国家</button>
+          <button class="tab" data-tab="nations" role="tab">国家・内政</button>
           <button class="tab" data-tab="officers" role="tab">武将</button>
-          <button class="tab" data-tab="species" role="tab">種族</button>
+          <button class="tab" data-tab="species" role="tab">種族能力</button>
           <button class="tab" data-tab="history" role="tab">年表</button>
         </div>
         <div id="panel" class="panel" aria-live="polite"></div>
@@ -128,7 +147,7 @@
         </div>
       </div>
     </section>
-    <div class="footer">獣界年代記 — Phase 0 / 4地域・2国家・2種族。地図はプレビュー用のオリジナル図形で、MVPの50地域地図ではありません。<br>無料・外部API不使用・シミュレーション処理は端末内。</div>
+    <div class="footer">獣界年代記 — P0.1 / 国家人口・種族ステータス先行閲覧版。現時点では4地域・2国家・2種族。地図はプレビュー用で、MVPの50地域地図ではありません。<br>無料・外部API不使用・シミュレーション処理は端末内。</div>
   </div>
   <script type="module" src="./src/ui/previewApp.js"></script>
 </body>

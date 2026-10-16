@@ -74,6 +74,17 @@
     .ability-row strong{text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
     .panel .stat strong{font-size:16px;overflow-wrap:anywhere}
     @media(max-width:780px){.panel{padding:13px}.data-row{min-height:61px}.ability-row{grid-template-columns:35px minmax(0,1fr) 30px}}
+
+    .officer-region{border:1px solid #425462;background:#20313d;border-radius:11px;padding:11px;margin:9px 0}
+    .office-line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #465865;font-size:12px}
+    .office-line:last-child{border-bottom:none}.office-right{font-variant-numeric:tabular-nums;color:#dbc78e;white-space:nowrap}
+    .candidate-card{background:#213442;border:1px solid #496072;border-radius:11px;padding:12px;margin:9px 0}
+    .candidate-abilities{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.candidate-abilities span{font-size:10px;background:#314757;color:#e0e7e9;padding:5px 7px;border-radius:6px}
+    .candidate-label{display:block;font-size:11px;color:#adbdc5;margin:11px 0 6px}
+    .candidate-select{display:block;width:100%;background:#152736;color:#f0e9cc;border:1px solid #79838a;border-radius:8px;min-height:42px;padding:8px 9px;font-size:12px;margin:11px 0 8px}
+    .hire-btn{display:block;width:100%;border:1px solid #c8a85b;border-radius:8px;background:#655331;color:#fff1cf;padding:10px 12px;min-height:42px;font-size:12px;font-weight:700;text-align:center}
+    .hire-btn:hover{background:#7c6539}.hire-btn:focus-visible{outline:2px solid #ffe7a4;outline-offset:3px}
+    @media(max-width:780px){.candidate-card{padding:11px}.candidate-select{font-size:12px}.controls button{flex:1;min-width:52px}.controls{gap:5px}}
   </style>
 </head>
 <body>
@@ -82,12 +93,12 @@
       <div class="brand"><div class="emblem" aria-hidden="true">♜</div><div>
         <div class="eyebrow">BEASTFOLK CHRONICLES</div><h1>獣界年代記</h1><div class="subtitle">文明興亡・国取りシミュレーション</div>
       </div></div>
-      <span class="pill">P0 操作試作版</span>
+      <span class="pill">武将人事 v2 試作版</span>
     </header>
-    <div class="intro"><p>４地域・２国家でエンジン接続を検証するプレビュー。<strong>戦争・内政・国境変化は今後実装</strong>します。</p><div class="date" id="calendar">世界暦 0年 1月</div></div>
+    <div class="intro"><p>４地域・２国家。<strong>武将3人配置・年次登用・人事交代は稼働中</strong>。戦争・国境変化は今後実装します。</p><div class="date" id="calendar">世界暦 0年 1月</div></div>
     <div class="controls" role="group" aria-label="時間操作">
       <div class="hint" id="runtime-note">▶ を押すと月が進みます。時代の変化は今後実装。</div>
-      <button id="pause" type="button" class="active">⏸ 停止</button><button id="speed1" type="button">▶ 1×</button><button id="speed5" type="button">▶ 5×</button><button id="speed20" type="button">▶ 20×</button><button id="step" type="button">＋1月</button>
+      <button id="pause" type="button" class="active">⏸ 停止</button><button id="speed1" type="button">▶ 1×</button><button id="speed5" type="button">▶ 5×</button><button id="speed20" type="button">▶ 20×</button><button id="step" type="button">＋1月</button><button id="step-year" type="button">＋1年</button>
     </div>
     <main class="grid">
       <section class="card">
@@ -120,7 +131,7 @@
         <div class="tabs" role="tablist" aria-label="情報表示">
           <button class="tab active" data-tab="region" role="tab">地域</button>
           <button class="tab" data-tab="nations" role="tab">国家・内政</button>
-          <button class="tab" data-tab="officers" role="tab">武将</button>
+          <button class="tab" data-tab="officers" role="tab">武将</button><button class="tab" data-tab="personnel" role="tab">人事・登用</button>
           <button class="tab" data-tab="species" role="tab">種族能力</button>
           <button class="tab" data-tab="history" role="tab">年表</button>
         </div>
@@ -129,7 +140,7 @@
     </main>
     <section class="below">
       <div class="card">
-        <div class="card-head"><h2>国家への介入</h2><span class="muted">Phase 0 実装機能</span></div>
+        <div class="card-head"><h2>国家への介入</h2><span class="muted">国家方針・人事操作</span></div>
         <p class="longline" style="padding-top:12px">方針を変更すると正式な命令として月次エンジンへ渡し、履歴に記録します。戦争・徴兵などはまだ使えません。</p>
         <div class="actions"><label for="nation-select">対象国家</label><select id="nation-select"></select><label for="strategy-select">国家方針</label><select id="strategy-select">
           <option value="balanced">均衡重視</option><option value="expansion">拡張重視</option><option value="domestic">内政重視</option><option value="trade">商業重視</option><option value="defense">防衛重視</option><option value="diplomacy">外交重視</option>
@@ -147,7 +158,7 @@
         </div>
       </div>
     </section>
-    <div class="footer">獣界年代記 — P0.1 / 国家人口・種族ステータス先行閲覧版。現時点では4地域・2国家・2種族。地図はプレビュー用で、MVPの50地域地図ではありません。<br>無料・外部API不使用・シミュレーション処理は端末内。</div>
+    <div class="footer">獣界年代記 — 武将人事システム試作版 / 各地域3人・年次登用。現時点では4地域・2国家・2種族。地図はプレビュー用で、MVPの50地域地図ではありません。<br>無料・外部API不使用・シミュレーション処理は端末内。</div>
   </div>
   <script type="module" src="./src/ui/previewApp.js"></script>
 </body>

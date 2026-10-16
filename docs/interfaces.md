@@ -1,9 +1,9 @@
-# Beastfolk Chronicles / AI-0 共通データ契約 v1（Phase 0）
+# Beastfolk Chronicles / AI-0 共通データ契約 v2（P4先行武将システム）
 
 - 確定日: 2026-10-16
-- 状態: **Phase 0 contract freeze**。上位仕様書 Ver.1.0 の設計意図を優先する。
+- 状態: **WorldState schemaVersion 2**。上位仕様書 Ver.1.0 と武将仕様 v1.1 の設計意図を優先する。
 - 正式ソース: `src/core/constants.js`, `src/core/validation.js` とこの文書。矛盾はAI-0が解消するまで各担当で独断変更しない。
-- **現状**: サンプル4地域/2国家/2種族。MVPの50/10/20ではない。経済/戦闘/AI/人物交代の実処理は未実装。
+- **現状**: サンプル4地域/2国家/2種族/初期12武将。武将の年次加齢、登用・交代・AI人事は実装済み。経済/戦闘/領土変更は未実装。
 
 ## 1. 数値・ID・単位
 
@@ -25,16 +25,17 @@
 
 ```js
 {
-  schemaVersion: 1, seed: 12345, rngState: 12345, monthIndex: 0,
+  schemaVersion: 2, seed: 12345, rngState: 12345, monthIndex: 0,
   provinces: Record<ProvinceId, Province>,
   nations: Record<NationId, Nation>,
   species: Record<SpeciesId, Species>,
   officers: Record<OfficerId, Officer>,
+  officerCandidates: Record<CandidateId, OfficerCandidate>,
   armies: Record<ArmyId, Army>,
   relations: Record<CanonicalPairKey, Relation>,
   events: HistoryEvent[],
   player: {mode:'observer'|'intervention',selectedNationId:null|string,pendingOrders:GameOrder[]},
-  nextIds: {event:1, officer:3, army:3, nation:3, order:1}
+  nextIds: {event:1, officer:13, army:3, nation:3, order:1, candidate:1}
 }
 ```
 
@@ -64,7 +65,8 @@ Province={id,nameJa,ownerNationId:string|null,neighbors:string[],
  populationBySpecies:Record<SpeciesId,nonnegative integer>,
  agriculture:number,commerce:number,development:number,fortLevel:integer,
  publicOrder:number,foodPotential:number,materialPotential:number,
- garrisonArmyIds:string[]}
+ garrisonArmyIds:string[],
+ slots:{governor:OfficerId|null,military:OfficerId|null,advisor:OfficerId|null}}
 Nation={id,nameJa,color:'#RRGGBB',government:'tribe'|'kingdom'|'republic'|'federation',
  capitalProvinceId:string,rulerOfficerId:string,treasury:number,food:number,
  materials:number,stability:number,
@@ -81,7 +83,8 @@ Nation={id,nameJa,color:'#RRGGBB',government:'tribe'|'kingdom'|'republic'|'feder
 Officer={id,nameJa,speciesId,nationId:string|null,age:integer,
  role:'ruler'|'general'|'administrator'|'diplomat'|'scout'|'unassigned',
  stats:{martial:number,command:number,intellect:number,administration:number,diplomacy:number},
- traits:string[],loyalty:number,experience:number,alive:boolean}
+ traits:string[],loyalty:number,experience:number,alive:boolean,
+ status:'active'|'reserve'|'captive'|'exile'|'retired',captorNationId:string|null}
 Army={id,nationId,provinceId,commanderId,troopsBySpecies:Record<SpeciesId,integer>,
  morale:number,supply:number,targetProvinceId:string|null}
 ```
@@ -169,7 +172,7 @@ GameOrder={id:string,issuer:'ai'|'player',nationId:string,
 11. 実際に起きた状態変更からイベント化 -> AI-4
 12. validateWorld -> rngState反映 -> monthIndex++ -> UI通知
 
-P0 `advanceMonth` は 7のうち `set_strategy` のみ、11記録、12のみを行う。順番や乱数消費順の変更は**シード再現性の破壊的変更**なので `docs/development-log.md` に記録する。
+現在の `advanceMonth` は国家経済・戦闘・領土変更こそ未実装だが、`set_strategy` に加えて `hire_candidate` / `assign_officer` / `recruit_captive` と、年次人事・加齢・君主継承・武将イベントを実行する。順番や乱数消費順の変更は**シード再現性の破壊的変更**なので `docs/development-log.md` に記録する。
 
 ## 10. セーブ/再現性
 
@@ -177,7 +180,7 @@ P0 `advanceMonth` は 7のうち `set_strategy` のみ、11記録、12のみを�
 - シミュレーションロジック内部で `Math.random()`,`Date.now()`,`performance.now()`, ネットワーク結果等を判定入力に使わない。
 - リロード後は `importSave` -> `createRng(world.rngState)` -> `advanceMonth` と同じ状態遷移。
 - セーブ上限暫定: 64MiB文字。過去の全イベントを永続化するが長期ログの圧縮/スナップショット方針はP6で検討。
-- `IndexedDB` 自動保存とインポートUIはP5。Phase 0はJSON文字列のみ。
+- `IndexedDB` は未実装。現行サイトはlocalStorage自動保存とJSONファイルの出し入れに対応。Version 1の旧セーブはVersion 2へ決定的に移行する。
 - スキーマ破壊時は `schemaVersion` を増やし、マイグレーション実装がある場合のみ旧版セーブを読み込む。
 
 ## 11. 契約の変更手順
@@ -189,3 +192,15 @@ P0 `advanceMonth` は 7のうち `set_strategy` のみ、11記録、12のみを�
 5. main統合後、基準HEADを全担当に配布。
 
 **AI-0の承認なしに共有データへ別名フィールドを増やさない。**
+
+## v2 追加仕様（武将／人事）
+
+- すべての地域に統治官・軍事官・参謀官の3枠。初期サンプルは4地域×3＝12人。配置人員は原則1地域1枠のみで重複不可。
+- 武将 `status` は任地配属・予備役・捕虜・亡命・死亡引退。捕虜だけ `captorNationId` を保持する。死者を軍団長・君主・地域枠に残さない。
+- `officerCandidates` は年次生成（世界暦1年1月から12か月ごと）、国家別・種族人口加重、翌年更新まで保持。登用した時点で正式武将ID発行。
+- 命令 `hire_candidate`: params.candidateId、任意の targetProvinceId + params.slot（省略時予備役）。
+- 命令 `assign_officer`: params.officerId、必須 targetProvinceId + params.slot。配置先の incumbent は予備役、元任地は空席。
+- 命令 `recruit_captive`: params.officerId、任意の targetProvinceId + params.slot。敗将登用はAI-3の国滅亡処理を経て捕虜となった者のみ。
+- `settleDefeatedOfficers`: 敗戦国が生存=false、領地・軍が整理されたあとにAI-3が呼び出す。P3戦争システム未実装につき試作世界ではまだ戦争は発生しない。
+- `initializeOfficerSystem`: Version 1→2セーブ移行時に独立seedで初期枠と不足武将を補い、原本のrngStateを変更しない。
+- 実装経緯: [officer-system-implementation.md](officer-system-implementation.md)。

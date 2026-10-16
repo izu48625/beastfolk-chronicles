@@ -2,6 +2,7 @@ import { cloneWorld } from './world.js';
 import { createRng } from './rng.js';
 import { validateWorld } from './validation.js';
 import { resolveOrders } from './orders.js';
+import {processAnnualOfficers} from '../systems/officers.js';
 
 /**
  * P0-only monthly engine. Does NOT pretend that the AI/economy/combat systems exist.
@@ -18,10 +19,13 @@ export function advanceMonth(world, playerOrders = []) {
   // P0 has no AI-generated orders; this changes when AI-3 joins the engine.
   const {events,acceptedOrders,rejectedOrders} = resolveOrders(next, playerOrders, rng);
   next.events.push(...events);
-  next.rngState = rng.getState();
   next.monthIndex += 1;
+  const eventStart = next.events.length;
+  processAnnualOfficers(next,rng);
+  const annualEvents = next.events.slice(eventStart);
+  next.rngState = rng.getState();
   next.player.pendingOrders = [];
   const after = validateWorld(next);
   if (!after.ok) throw new Error(`Engine invariant failure: ${after.errors.slice(0,5).join('; ')}`);
-  return {world: next, events, acceptedOrders, rejectedOrders};
+  return {world: next, events:[...events,...annualEvents], acceptedOrders, rejectedOrders};
 }

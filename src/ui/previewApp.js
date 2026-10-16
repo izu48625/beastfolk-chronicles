@@ -3,6 +3,7 @@ import {createWorld, cloneWorld, getNationSummary, totalPopulation, totalTroops}
 import {advanceMonth} from '../core/engine.js';
 import {exportSave, importSave} from '../core/save.js';
 import {getNationDemographics, getSpeciesDemographics} from '../core/demographics.js';
+import {OFFICER_SLOTS,officerAssignment,officerFitness} from '../systems/officers.js';
 
 const $ = id => document.getElementById(id);
 const nfmt = value => new Intl.NumberFormat('ja-JP').format(value);
@@ -13,6 +14,8 @@ const govNames = {kingdom:'王国',federation:'連邦',republic:'共和国',trib
 const statNames={dom:'内政',eco:'経済',pow:'武力',def:'防御',mob:'機動',rec:'斥候',log:'兵站',dip:'外交'};
 const dietNames={omnivore:'雑食',herbivore:'草食',carnivore:'肉食'};
 const traitNames={keen_smell:'鋭い嗅覚',heavy_food_demand:'大量の食糧を消費',cold_resistance:'耐寒',heat_sensitive:'暑さに弱い',forest_adapted:'森林適応'};
+const slotNames={governor:'統治官',military:'軍事官',advisor:'参謀官'};
+const officerStatusNames={active:'任地配属',reserve:'予備役',captive:'捕虜',exile:'亡命',retired:'故人・引退'};
 const statColors={dom:'#7dbba2',eco:'#a9ad77',pow:'#d58777',def:'#8aaec9',mob:'#e4b76f',rec:'#9fbb8b',log:'#c6ac8c',dip:'#9a9ac8'};
 const storageKey = 'beastfolk-p0-preview-v1';
 let world;
@@ -74,7 +77,13 @@ function regionInfo() {
     html+='<button class="data-row" data-species="'+esc(id)+'"><div class="data-row-top"><strong>'+esc(world.species[id]?.nameJa??id)+'</strong><b>'+nfmt(pop)+'人 <span class="light">('+percentText(population?pop/population*100:0)+')</span></b></div>'
       +reportBar(population?pop/population*100:0)+ '</button>';
   }
-  return html+'<div class="notice">現在は初期固定人口です。出生・移住・戦争による増減は後続Phaseで実装します。</div>';
+  html+='<h4>担当武将 3人</h4>';
+  for(const slot of OFFICER_SLOTS){
+    const id=prov.slots?.[slot],o=world.officers[id];
+    html+='<div class="mini-row" style="cursor:default"><div><strong>'+slotNames[slot]+'</strong><br><small>'+esc(o?.nameJa??'空席')+'</small></div><div style="text-align:right"><strong>'+esc(o?world.species[o.speciesId]?.nameJa??'':'欠員')+'</strong><br><small>'+esc(o?'適性 '+Math.round(officerFitness(o,slot))+' / '+o.age+'歳':'補充が必要')+'</small></div></div>';
+  }
+  html+='<button class="backlink" data-personnel-link="'+esc(prov.ownerNationId??'')+'">人事・登用の画面へ →</button>';
+  return html+'<div class="notice">人口はまだ固定値ですが、人材は毎年生まれ、交代・加齢・死亡します。</div>';
 }
 function nationInfo() {
   if (selectedNationId && world.nations[selectedNationId]) {
@@ -90,6 +99,7 @@ function nationInfo() {
     for(const s of demo.speciesRows)html+=renderSpeciesRow(s.speciesId,s,s.percent);
     html+='<h4>地域別人口</h4>';
     for(const p of demo.regionRows)html+='<button class="mini-row" data-region="'+esc(p.provinceId)+'"><div><strong>'+esc(p.nameJa)+'</strong><br><small>主要種族 '+esc(world.species[p.mainSpeciesId]?.nameJa??'不明')+'</small></div><div style="text-align:right"><strong>'+nfmt(p.total)+'人</strong><br><small>住民 '+nfmt(p.civilians)+' / 兵 '+nfmt(p.military)+'</small></div></button>';
+    html+='<button class="backlink" data-personnel-link="'+esc(n.id)+'">地域の担当武将と登用候補を見る →</button>';
     html+='<h4>内政・国力</h4>'+row('首都',capital?.nameJa??'不明')+row('政治体制',govNames[n.government]??n.government)
       +row('政策方針',strategies[n.strategy]??n.strategy)+row('国庫',nfmt(n.treasury))
       +row('食糧備蓄',nfmt(n.food))+row('資材',nfmt(n.materials))
@@ -112,7 +122,7 @@ function officersInfo() {
     const nation = world.nations[officer.nationId];
     const species = world.species[officer.speciesId];
     html += '<div class="mini-row" style="cursor:default"><div><strong>' + esc(officer.nameJa) + '</strong><br><small>' +
-      esc(nation?.nameJa ?? '無所属') + ' / ' + esc(species?.nameJa ?? '不明') + '</small></div><div style="text-align:right"><strong>' +
+      esc(nation?.nameJa ?? '無所属') + ' / ' + esc(species?.nameJa ?? '不明') + ' / '+esc(officerStatusNames[officer.status]??'')+'</small></div><div style="text-align:right"><strong>' +
       nfmt(officer.age) + '歳</strong><br><small>統率 ' + nfmt(officer.stats.command) + '</small></div></div>';
   }
   html += '<div class="notice">人物の加齢・登用・死亡・世代交代はPhase 4で実装予定。</div>';
@@ -151,6 +161,71 @@ function speciesInfo() {
   }
   return html+'<div class="notice">現在の試作版には2種族のみ登場。20種族へ拡張後もこの図鑑に自動表示されます。</div>';
 }
+
+function personnelInfo() {
+  const nationId=$('nation-select').value, nation=world.nations[nationId];
+  if(!nation?.alive)return '<div class="notice">人事の対象となる国家を選んでください。</div>';
+  const provinces=Object.values(world.provinces).filter(p=>p.ownerNationId===nationId).sort((a,b)=>a.id.localeCompare(b.id));
+  const candidates=Object.values(world.officerCandidates).filter(c=>c.nationId===nationId).sort((a,b)=>a.id.localeCompare(b.id));
+  const assigned=provinces.reduce((sum,p)=>sum+OFFICER_SLOTS.filter(slot=>p.slots?.[slot]).length,0);
+  const reserve=Object.values(world.officers).filter(o=>o.nationId===nationId&&o.alive&&o.status==='reserve');
+  const captives=Object.values(world.officers).filter(o=>o.alive&&o.status==='captive'&&o.captorNationId===nationId);
+  const isControlled=world.player.mode==='intervention'&&world.player.selectedNationId===nationId;
+  let html='<div class="kicker">PERSONNEL / 人材登用</div><h3>'+esc(nation.nameJa)+'の人事</h3>'
+    +'<div class="stats">'+metric('配属武将',assigned+' / '+provinces.length*3)
+    +metric('予備役',reserve.length+'人')+metric('今年の候補',candidates.length+'人')
+    +metric('登用可能な捕虜',captives.length+'人')+'</div>'
+    +'<button class="backlink" id="personnel-mode-toggle">'+(isControlled?'✓ この国の人事を手動管理中':'この国の人事に介入する')+'</button>'
+    +'<div class="notice">'+(isControlled?'介入中：毎年の候補をAIが勝手に登用しません。こちらで採用できます。':'観察中：毎年の候補をAIが自動的に評価・登用します。')+'</div>'
+    +'<h4>地域の3武将</h4>';
+  for(const prov of provinces){
+    html+='<div class="officer-region"><div class="data-row-top"><strong>'+esc(prov.nameJa)+'</strong><span class="light">'+OFFICER_SLOTS.filter(s=>prov.slots[s]).length+'/3人</span></div>';
+    for(const slot of OFFICER_SLOTS){
+      const id=prov.slots[slot],o=world.officers[id];
+      html+='<div class="office-line"><div><span class="light">'+slotNames[slot]+'</span><br><strong>'+esc(o?.nameJa??'空席')+'</strong></div><div class="office-right">'+(o?'適性 '+Math.round(officerFitness(o,slot)):'欠員')+'</div></div>';
+    }
+    html+='</div>';
+  }
+  html+='<h4>今年の登用候補</h4>';
+  if(!candidates.length){
+    html+='<div class="notice">現在、選考できる候補はいません。世界暦の年初（12か月ごと）に新しい候補が生まれます。「＋1年」で確認できます。</div>';
+  }
+  const targetOptions=(includeReserve=true)=>{
+    let result=includeReserve?'<option value="">予備役として採用</option>':'';
+    for(const p of provinces)for(const slot of OFFICER_SLOTS){
+      const old=world.officers[p.slots[slot]];
+      if(old?.id===nation.rulerOfficerId)continue;
+      result+='<option value="'+esc(p.id+'|'+slot)+'">'+esc(p.nameJa+' / '+slotNames[slot]+'：'+(old?.nameJa??'空席'))+'</option>';
+    }
+    return result;
+  };
+  for(const candidate of candidates){
+    const primary=Object.entries(candidate.stats).sort((a,b)=>b[1]-a[1])[0];
+    html+='<div class="candidate-card"><div class="data-row-top"><strong>'+esc(candidate.nameJa)+'</strong><b>'+esc(world.species[candidate.speciesId]?.nameJa??'')+'</b></div>'
+      +'<div class="data-sub">'+candidate.age+'歳 · '+esc(primary[0])+' '+primary[1]+' / 統率 '+candidate.stats.command+' / 内政 '+candidate.stats.administration+'</div>'
+      +'<div class="candidate-abilities">'+
+       Object.entries(candidate.stats).map(([k,v])=>'<span>'+esc(({martial:'武勇',command:'統率',intellect:'知略',administration:'内政',diplomacy:'外交'})[k])+' '+v+'</span>').join('')
+      +'</div><label class="candidate-label" for="target-'+esc(candidate.id)+'">採用先・交代する役職</label>'
+      +'<select class="candidate-select" id="target-'+esc(candidate.id)+'">'+targetOptions()+'</select>'
+      +'<button class="hire-btn" data-hire="'+esc(candidate.id)+'">この候補を登用する</button></div>';
+  }
+  html+='<h4>予備役の武将</h4>';
+  if(!reserve.length)html+='<div class="muted">予備役はいません。</div>';
+  for(const officer of reserve){
+    html+='<div class="candidate-card"><div class="data-row-top"><strong>'+esc(officer.nameJa)+'</strong><span class="light">'+esc(world.species[officer.speciesId]?.nameJa??'')+'</span></div>'
+      +'<div class="data-sub">'+officer.age+'歳 / 武勇 '+officer.stats.martial+' / 統率 '+officer.stats.command+' / 内政 '+officer.stats.administration+'</div>'
+      +'<select class="candidate-select" id="assign-'+esc(officer.id)+'">'+targetOptions(false)+'</select>'
+      +'<button class="hire-btn" data-assign="'+esc(officer.id)+'">地域へ配置する</button></div>';
+  }
+  html+='<h4>敵国から獲得した捕虜</h4>';
+  if(!captives.length)html+='<div class="muted">現在は捕虜がいません。敵国滅亡後の獲得処理は今後の戦争システムで発生します。</div>';
+  for(const officer of captives){
+    html+='<div class="candidate-card"><strong>'+esc(officer.nameJa)+'</strong><div class="data-sub">'+esc(world.species[officer.speciesId]?.nameJa??'')+' / 統率 '+officer.stats.command+'</div>'
+      +'<select class="candidate-select" id="captive-'+esc(officer.id)+'">'+targetOptions()+'</select>'
+      +'<button class="hire-btn" data-recruit-captive="'+esc(officer.id)+'">旧敵将を登用する</button></div>';
+  }
+  return html;
+}
 function historyInfo() {
   let html = '<div class="kicker">CHRONICLE / 世界年表</div><h3>歴史の記録</h3>';
   const events = world.events.slice(-50).reverse();
@@ -163,7 +238,7 @@ function historyInfo() {
   return html;
 }
 function renderPanel() {
-  const views={region:regionInfo,nations:nationInfo,officers:officersInfo,species:speciesInfo,history:historyInfo};
+  const views={region:regionInfo,nations:nationInfo,officers:officersInfo,species:speciesInfo,history:historyInfo,personnel:personnelInfo};
   const panel=$('panel'),scroll=panel.scrollTop;
   panel.innerHTML=(views[selectedTab]||regionInfo)();
   panel.scrollTop=scroll;
@@ -180,6 +255,36 @@ function renderPanel() {
     if(!world.provinces[button.dataset.region])return;
     selectedProvince=button.dataset.region;selectedTab='region';panel.scrollTop=0;render();
   }));
+  panel.querySelectorAll('[data-personnel-link]').forEach(button=>button.addEventListener('click',()=>{
+    const id=button.dataset.personnelLink;
+    if(!world.nations[id]?.alive)return;
+    $('nation-select').value=id;syncStrategy();selectedTab='personnel';panel.scrollTop=0;render();
+  }));
+  panel.querySelectorAll('[data-hire]').forEach(button=>button.addEventListener('click',()=>{
+    const id=button.dataset.hire,value=$('target-'+id)?.value??'';
+    officerCommand('hire_candidate',{candidateId:id},value);
+  }));
+  panel.querySelectorAll('[data-assign]').forEach(button=>button.addEventListener('click',()=>{
+    const id=button.dataset.assign,value=$('assign-'+id)?.value??'';
+    officerCommand('assign_officer',{officerId:id},value);
+  }));
+  panel.querySelectorAll('[data-recruit-captive]').forEach(button=>button.addEventListener('click',()=>{
+    const id=button.dataset.recruitCaptive,value=$('captive-'+id)?.value??'';
+    officerCommand('recruit_captive',{officerId:id},value);
+  }));
+  const toggle=panel.querySelector('#personnel-mode-toggle');
+  if(toggle)toggle.addEventListener('click',()=>{
+    stop();
+    const nationId=$('nation-select').value;
+    if(world.player.mode==='intervention'&&world.player.selectedNationId===nationId) {
+      world.player.mode='observer';world.player.selectedNationId=null;
+      notify('自動人事に戻しました。');
+    } else {
+      world.player.mode='intervention';world.player.selectedNationId=nationId;
+      notify('この国の人事に介入中です。候補は自動登用されません。');
+    }
+    saveBrowser();render();
+  });
   panel.querySelectorAll('[data-back]').forEach(button=>button.addEventListener('click',()=>{
     if(button.dataset.back==='nations')selectedNationId=null;
     if(button.dataset.back==='species')selectedSpeciesId=null;
@@ -226,11 +331,35 @@ function start(multiplier) {
   timer = setInterval(() => runMonth(),Math.max(50,Math.round(1000 / multiplier)));
   render();
 }
+
+function officerCommand(type,params,target){
+  stop();
+  const nationId=$('nation-select').value;
+  const previousMode=world.player.mode,previousSelected=world.player.selectedNationId;
+  const draft=cloneWorld(world);
+  draft.player.mode='intervention';draft.player.selectedNationId=nationId;
+  const [targetProvinceId,slot]=target?target.split('|'):[null,null];
+  if(type==='assign_officer'&&!targetProvinceId)return notify('配属先を選択してください',true);
+  const order={id:'order_'+String(draft.nextIds.order++).padStart(6,'0'),
+    issuer:'player',nationId,type,params:{...params,...(slot?{slot}:{})},submittedMonth:draft.monthIndex,
+    ...(targetProvinceId?{targetProvinceId}:{})};
+  try{
+    const result=advanceMonth(draft,[order]);
+    if(result.rejectedOrders.length)return notify(result.rejectedOrders[0].reason,true);
+    world=result.world;
+    world.player.mode=previousMode;
+    world.player.selectedNationId=previousSelected;
+    selectedTab='personnel';saveBrowser();render();
+    notify('人事命令が承認され、1か月進行しました。');
+  }catch(error){notify('人事エラー: '+String(error?.message??error),true);}
+}
+
 function applyStrategy() {
   stop();
   const nationId = $('nation-select').value;
   const strategy = $('strategy-select').value;
   if (!world.nations[nationId]) return notify('国が見つかりません',true);
+  const previousMode=world.player.mode,previousNation=world.player.selectedNationId;
   const draft = cloneWorld(world);
   draft.player.mode = 'intervention';
   draft.player.selectedNationId = nationId;
@@ -242,7 +371,7 @@ function applyStrategy() {
     const result = advanceMonth(draft,[order]);
     if (result.rejectedOrders.length) return notify(result.rejectedOrders[0].reason,true);
     world = result.world;
-    world.player.mode = 'observer'; world.player.selectedNationId = null;
+    world.player.mode=previousMode; world.player.selectedNationId=previousNation;
     const name = world.nations[nationId].nameJa;
     selectedTab = 'history'; saveBrowser(); render();
     notify(name + 'の方針を「' + (strategies[strategy] ?? strategy) + '」に変更。1か月進行し、観察モードに戻りました。');
@@ -290,6 +419,7 @@ $('speed1').addEventListener('click',() => start(1));
 $('speed5').addEventListener('click',() => start(5));
 $('speed20').addEventListener('click',() => start(20));
 $('step').addEventListener('click',() => {stop();runMonth();saveBrowser();});
+$('step-year').addEventListener('click',()=>{stop();for(let i=0;i<12;i++)if(!runMonth())break;saveBrowser();notify('12か月進めました。');});
 document.querySelectorAll('[data-province]').forEach(path => {
   path.setAttribute('tabindex','0');
   path.setAttribute('role','button');
@@ -298,7 +428,11 @@ document.querySelectorAll('[data-province]').forEach(path => {
   path.addEventListener('keydown',e => {if (e.key==='Enter' || e.key===' '){e.preventDefault();select();}});
 });
 document.querySelectorAll('[data-tab]').forEach(button => button.addEventListener('click',() => {selectedTab=button.dataset.tab; render();}));
-$('nation-select').addEventListener('change',syncStrategy);
+$('nation-select').addEventListener('change',()=>{
+  syncStrategy();
+  if(world.player.mode==='intervention'){world.player.selectedNationId=$('nation-select').value;saveBrowser();}
+  if(selectedTab==='personnel')render();
+});
 $('apply-strategy').addEventListener('click',applyStrategy);
 $('download').addEventListener('click',downloadSave);
 $('import').addEventListener('click',()=>$('import-file').click());

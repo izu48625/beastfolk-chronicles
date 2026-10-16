@@ -34,6 +34,8 @@ export function validateWorld(world) {
   const officers = record(world.officers,'officers');
   const armies = record(world.armies,'armies');
   const relations = record(world.relations,'relations');
+  const candidates = record(world.officerCandidates,'officerCandidates');
+  const assigned = new Set();
   const garrisonSeen = new Set();
 
   for (const [id,s] of mapEntries(species)) {
@@ -95,6 +97,19 @@ export function validateWorld(world) {
         else if (!array(provinces[other].neighbors) || !provinces[other].neighbors.includes(id)) fail(`${path}.neighbors`,'adjacency must be symmetric');
       }
     }
+    const slots=record(p.slots,`${path}.slots`);
+    for(const slot of ['governor','military','advisor']){
+      const id=slots[slot];
+      if(id===null)continue;
+      const officer=officers[id];
+      if(!str(id)||!officer)fail(`${path}.slots.${slot}`,'unknown officer');
+      else {
+        if(assigned.has(id))fail(`${path}.slots.${slot}`,'officer assigned multiple times');
+        assigned.add(id);
+        if(!officer.alive||officer.nationId!==p.ownerNationId||officer.status!=='active')
+          fail(`${path}.slots.${slot}`,'officer not active in province nation');
+      }
+    }
     const pop=record(p.populationBySpecies,`${path}.populationBySpecies`);
     for (const [type,amount] of mapEntries(pop)) {
       if (!species[type]) fail(`${path}.populationBySpecies.${type}`,'unknown species');
@@ -124,11 +139,37 @@ export function validateWorld(world) {
     checkResource(o.experience,`${path}.experience`);
     if (typeof o.alive!=='boolean') fail(`${path}.alive`,'must be boolean');
     if (!o.alive && o.role!=='unassigned') fail(`${path}.role`,'deceased officer must be unassigned');
+    if(!['active','reserve','captive','exile','retired'].includes(o.status))fail(`${path}.status`,'invalid officer status');
+    if(o.status==='captive' && !nations[o.captorNationId]?.alive)fail(`${path}.captorNationId`,'captive requires living captor');
+    if(o.status!=='captive' && o.captorNationId!=null)fail(`${path}.captorNationId`,'non-captive cannot have captor');
+    if(o.status==='retired' && o.alive)fail(`${path}.status`,'retired officer must not be alive');
+    if(!o.alive && o.status!=='retired')fail(`${path}.status`,'deceased officer must be retired');
+    if((o.status==='captive'||o.status==='exile') && o.nationId!==null)fail(`${path}.nationId`,'captive/exile must be independent');
     if (!array(o.traits) || o.traits.some(t=>!str(t))) fail(`${path}.traits`,'must be string[]');
     const stats=record(o.stats,`${path}.stats`);
     for (const key of OFFICER_STAT_KEYS) checkPercentage(stats[key],`${path}.stats.${key}`);
   }
 
+  for(const [id,o] of mapEntries(officers)){
+    if(o?.status==='active' && !assigned.has(id))fail(`officers.${id}.status`,'active officer lacks province slot');
+    if(o?.status!=='active' && assigned.has(id))fail(`officers.${id}.status`,'unassigned officer occupies a province slot');
+  }
+
+  for(const [id,candidate] of mapEntries(candidates)){
+    const path=`officerCandidates.${id}`;
+    if(!obj(candidate)){fail(path,'must be object');continue;}
+    if(candidate.id!==id)fail(path,'candidate id mismatch');
+    if(!nations[candidate.nationId]?.alive)fail(path,'candidate nation not alive');
+    if(!species[candidate.speciesId])fail(path,'unknown species');
+    requireValue(candidate.nameJa,`${path}.nameJa`,str,'missing name');
+    requireValue(candidate.age,`${path}.age`,v=>integer(v,15,100),'invalid candidate age');
+    requireValue(candidate.year,`${path}.year`,v=>integer(v,0,Math.floor(world.monthIndex/12)),'invalid nomination year');
+    checkPercentage(candidate.loyalty,`${path}.loyalty`);
+    checkResource(candidate.experience,`${path}.experience`);
+    if(!array(candidate.traits)||candidate.traits.some(t=>!str(t)))fail(`${path}.traits`,'must be string[]');
+    const stats=record(candidate.stats,`${path}.stats`);
+    for(const k of OFFICER_STAT_KEYS)checkPercentage(stats[k],`${path}.stats.${k}`);
+  }
   for (const [id,a] of mapEntries(armies)) {
     const path=`armies.${id}`;
     if (!obj(a)) {fail(path,'must be object');continue;}
@@ -183,7 +224,7 @@ export function validateWorld(world) {
   if (player.mode==='intervention' && !nations[player.selectedNationId]?.alive) fail('player.selectedNationId','intervention requires living nation');
   if (!array(player.pendingOrders)) fail('player.pendingOrders','must be array');
   const nextIds=record(world.nextIds,'nextIds');
-  for (const k of ['event','officer','army','nation','order']) requireValue(nextIds[k],`nextIds.${k}`,v=>integer(v,1,Number.MAX_SAFE_INTEGER),'must be positive safe integer');
+  for (const k of ['event','officer','army','nation','order','candidate']) requireValue(nextIds[k],`nextIds.${k}`,v=>integer(v,1,Number.MAX_SAFE_INTEGER),'must be positive safe integer');
   for (const [id,n] of mapEntries(nations)) {
     const territories=Object.values(provinces).filter(p=>p?.ownerNationId===id).length;
     if (n?.alive && !territories) fail(`nations.${id}`,'living nation owns no provinces');

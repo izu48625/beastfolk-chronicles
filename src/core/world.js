@@ -2,6 +2,7 @@ import { SCHEMA_VERSION } from './constants.js';
 import { assertSeed } from './rng.js';
 import { SAMPLE_WORLD_DATA } from './sampleWorld.js';
 import { validateWorld } from './validation.js';
+import {initializeOfficerSystem} from '../systems/officers.js';
 
 /** JSON-compatible, deterministic deep copy. WorldState intentionally carries no methods. */
 export function cloneWorld(world) { return JSON.parse(JSON.stringify(world)); }
@@ -27,6 +28,7 @@ export function createWorld(seed, config = {}) {
     player: {mode:'observer', selectedNationId:null, pendingOrders:[]},
     nextIds: {event:1,officer:3,army:3,nation:3,order:1}
   };
+  initializeOfficerSystem(world);
   const check = validateWorld(world);
   if (!check.ok) throw new Error('invalid P0 sample world: ' + check.errors.join('; '));
   return world;

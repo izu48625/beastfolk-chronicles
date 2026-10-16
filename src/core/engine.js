@@ -20,10 +20,12 @@ export function advanceMonth(world, playerOrders = []) {
   const {events,acceptedOrders,rejectedOrders} = resolveOrders(next, playerOrders, rng);
   next.events.push(...events);
   next.monthIndex += 1;
+  const eventStart = next.events.length;
   processAnnualOfficers(next,rng);
+  const annualEvents = next.events.slice(eventStart);
   next.rngState = rng.getState();
   next.player.pendingOrders = [];
   const after = validateWorld(next);
   if (!after.ok) throw new Error(`Engine invariant failure: ${after.errors.slice(0,5).join('; ')}`);
-  return {world: next, events, acceptedOrders, rejectedOrders};
+  return {world: next, events:[...events,...annualEvents], acceptedOrders, rejectedOrders};
 }

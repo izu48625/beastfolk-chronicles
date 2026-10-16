@@ -11,9 +11,9 @@ export const OFFICER_ROLES = Object.freeze(['ruler', 'general', 'administrator',
 export const ORDER_TYPES = Object.freeze([
   'set_strategy', 'develop_agriculture', 'develop_commerce', 'fortify',
   'recruit', 'research', 'move_army', 'declare_war', 'attack', 'offer_peace',
-  'propose_alliance', 'trade_agreement'
+  'propose_alliance', 'trade_agreement', 'hire_candidate', 'assign_officer', 'recruit_captive'
 ]);
-export const IMPLEMENTED_P0_ORDERS = Object.freeze(['set_strategy']);
+export const IMPLEMENTED_P0_ORDERS = Object.freeze(['set_strategy', 'hire_candidate', 'assign_officer', 'recruit_captive']);
 export const MAX_RESOURCE = 1_000_000_000_000;
 export const MAX_POPULATION = 1_000_000_000_000;
 export const MAX_EVENTS = 2_000_000;

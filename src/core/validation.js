@@ -5,7 +5,7 @@ import {
 } from './constants.js';
 import { canonicalPairKey } from './rng.js';
 
-// Returns every detected failure instead of throwing on ordinary user save data.
+/** Returns every detected failure instead of throwing on ordinary user save data. */
 export function validateWorld(world) {
   const errors = [];
   const fail = (path, reason) => errors.push(`${path}: ${reason}`);

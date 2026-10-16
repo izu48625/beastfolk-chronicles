@@ -1,5 +1,5 @@
 /** P0: canonical enums and safety ceilings. Changes require an interfaces.md revision. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const STAT_KEYS = Object.freeze(['dom', 'eco', 'pow', 'def', 'mob', 'rec', 'log', 'dip']);
 export const OFFICER_STAT_KEYS = Object.freeze(['martial', 'command', 'intellect', 'administration', 'diplomacy']);
 export const STRATEGIES = Object.freeze(['expansion', 'domestic', 'trade', 'defense', 'diplomacy', 'balanced']);

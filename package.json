@@ -6,7 +6,9 @@
   "description": "Beastfolk Chronicles Phase 0 simulation contracts and deterministic core",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/core/constants.js && node --check src/core/rng.js && node --check src/core/sampleWorld.js && node --check src/core/world.js && node --check src/core/orders.js && node --check src/core/validation.js && node --check src/core/engine.js && node --check src/core/save.js"
+    "check": "node --check src/core/constants.js && node --check src/core/rng.js && node --check src/core/sampleWorld.js && node --check src/core/world.js && node --check src/core/orders.js && node --check src/core/validation.js && node --check src/core/engine.js && node --check src/core/save.js && node --check src/core/demographics.js && node --check src/ui/previewApp.js"
   },
-  "engines": {"node": ">=20"}
+  "engines": {
+    "node": ">=20"
+  }
 }

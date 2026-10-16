@@ -1,9 +1,10 @@
 import { IMPLEMENTED_P0_ORDERS, ORDER_TYPES, STRATEGIES } from './constants.js';
+import {OFFICER_SLOTS, hireCandidate, assignOfficer, recruitCaptive} from '../systems/officers.js';
 
 /** Explicit validation errors; commands not yet implemented cannot be silently accepted. */
 const bad = (code, reason) => ({ok:false, code, reason});
 export function orderDomain(type) {
-  if (['develop_agriculture','develop_commerce','fortify','research','set_strategy'].includes(type)) return 'internal';
+  if (['develop_agriculture','develop_commerce','fortify','research','set_strategy','hire_candidate','assign_officer','recruit_captive'].includes(type)) return 'internal';
   if (['recruit','move_army','attack'].includes(type)) return 'military';
   return 'diplomacy';
 }
@@ -21,6 +22,28 @@ export function validateOrder(world, order) {
   }
   if (order.type === 'set_strategy' && !STRATEGIES.includes(order.params.strategy)) {
     return bad('INVALID_STRATEGY','有効な国家方針を指定してください');
+  }
+  if (['hire_candidate','assign_officer','recruit_captive'].includes(order.type)) {
+    const p=order.targetProvinceId==null?null:world.provinces[order.targetProvinceId];
+    const slot=order.params.slot;
+    if(order.targetProvinceId!=null && (p?.ownerNationId!==order.nationId || !OFFICER_SLOTS.includes(slot)))
+      return bad('INVALID_ASSIGNMENT','配属地域または役職が不正です');
+    if(order.type==='assign_officer' && order.targetProvinceId==null)
+      return bad('INVALID_ASSIGNMENT','配属地域を指定してください');
+    if(order.targetProvinceId!=null && p.slots[slot]===world.nations[order.nationId].rulerOfficerId &&
+       (order.type!=='assign_officer'||order.params.officerId!==p.slots[slot]))
+      return bad('RULER_POST','君主の地域担当を交代できません');
+    if(order.type==='hire_candidate' && world.officerCandidates?.[order.params.candidateId]?.nationId!==order.nationId)
+      return bad('UNKNOWN_CANDIDATE','この国に所属する登用候補ではありません');
+    if(order.type==='assign_officer' &&
+       (!world.officers[order.params.officerId]?.alive||
+        world.officers[order.params.officerId]?.nationId!==order.nationId||
+        !['active','reserve'].includes(world.officers[order.params.officerId]?.status)))
+      return bad('INVALID_OFFICER','配置できない武将です');
+    if(order.type==='recruit_captive' &&
+       (world.officers[order.params.officerId]?.status!=='captive'||
+        world.officers[order.params.officerId]?.captorNationId!==order.nationId))
+      return bad('UNKNOWN_CAPTIVE','この国が登用できる捕虜ではありません');
   }
   if (!IMPLEMENTED_P0_ORDERS.includes(order.type)) return bad('NOT_IMPLEMENTED',`${order.type} は担当Phaseで実装予定です`);
   return {ok:true};
@@ -48,10 +71,26 @@ export function resolveOrders(world, orders, _rng) {
     if (usedIds.has(order.id)) { rejected.push({order, ...bad('DUPLICATE_ID','命令IDが重複しています')}); continue; }
     usedIds.add(order.id);
     // At P0 only one strategy-changing order per nation/month.
-    const scope = `${order.nationId}:${order.type}`;
+    const target=order.type==='hire_candidate'?order.params.candidateId:
+      ['assign_officer','recruit_captive'].includes(order.type)?order.params.officerId:'';
+    const scope = `${order.nationId}:${order.type}:${target}`;
     if (touchedDomains.has(scope)) { rejected.push({order, ...bad('ORDER_CONFLICT','同じ国家・種類への重複命令です')}); continue; }
     touchedDomains.add(scope);
-    if (order.type === 'set_strategy') {
+    if (order.type === 'hire_candidate' || order.type === 'assign_officer' || order.type === 'recruit_captive') {
+      const eventStart=world.events.length;
+      try{
+        if(order.type==='hire_candidate')hireCandidate(world,order.nationId,order.params.candidateId,order.targetProvinceId??null,order.params.slot??null,order.issuer);
+        if(order.type==='assign_officer')assignOfficer(world,order.nationId,order.params.officerId,order.targetProvinceId,order.params.slot,{issuer:order.issuer});
+        if(order.type==='recruit_captive')recruitCaptive(world,order.nationId,order.params.officerId,order.targetProvinceId??null,order.params.slot??null,order.issuer);
+        events.push(...world.events.splice(eventStart));
+        accepted.push(order);
+      } catch(error){
+        rejected.push({order,...bad('OFFICER_ACTION_FAILED',String(error?.message??error))});
+        // Validation happens before any mutation. Rollbacks for multi-step operations are unnecessary here.
+        // A rejected order must not generate events.
+        world.events.splice(eventStart);
+      }
+    } else if (order.type === 'set_strategy') {
       const nation = world.nations[order.nationId];
       const previous = nation.strategy;
       nation.strategy = order.params.strategy;

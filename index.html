@@ -93,9 +93,9 @@
       <div class="brand"><div class="emblem" aria-hidden="true">♜</div><div>
         <div class="eyebrow">BEASTFOLK CHRONICLES</div><h1>獣界年代記</h1><div class="subtitle">文明興亡・国取りシミュレーション</div>
       </div></div>
-      <span class="pill">P0 操作試作版</span>
+      <span class="pill">武将人事 v2 試作版</span>
     </header>
-    <div class="intro"><p>４地域・２国家でエンジン接続を検証するプレビュー。<strong>戦争・内政・国境変化は今後実装</strong>します。</p><div class="date" id="calendar">世界暦 0年 1月</div></div>
+    <div class="intro"><p>４地域・２国家。<strong>武将3人配置・年次登用・人事交代は稼働中</strong>。戦争・国境変化は今後実装します。</p><div class="date" id="calendar">世界暦 0年 1月</div></div>
     <div class="controls" role="group" aria-label="時間操作">
       <div class="hint" id="runtime-note">▶ を押すと月が進みます。時代の変化は今後実装。</div>
       <button id="pause" type="button" class="active">⏸ 停止</button><button id="speed1" type="button">▶ 1×</button><button id="speed5" type="button">▶ 5×</button><button id="speed20" type="button">▶ 20×</button><button id="step" type="button">＋1月</button><button id="step-year" type="button">＋1年</button>
@@ -140,7 +140,7 @@
     </main>
     <section class="below">
       <div class="card">
-        <div class="card-head"><h2>国家への介入</h2><span class="muted">Phase 0 実装機能</span></div>
+        <div class="card-head"><h2>国家への介入</h2><span class="muted">国家方針・人事操作</span></div>
         <p class="longline" style="padding-top:12px">方針を変更すると正式な命令として月次エンジンへ渡し、履歴に記録します。戦争・徴兵などはまだ使えません。</p>
         <div class="actions"><label for="nation-select">対象国家</label><select id="nation-select"></select><label for="strategy-select">国家方針</label><select id="strategy-select">
           <option value="balanced">均衡重視</option><option value="expansion">拡張重視</option><option value="domestic">内政重視</option><option value="trade">商業重視</option><option value="defense">防衛重視</option><option value="diplomacy">外交重視</option>

@@ -32,6 +32,16 @@ Node.js >= 20。外部パッケージ、外部API、サーバー、課金不要�
 - ソースの担当: AI-0=`src/core/*`、AI-1=地図、AI-2=生態経済、AI-3=戦争外交AI、AI-4=武将歴史、AI-5=UI、AI-6=QA。
 - 他のGitHubプロジェクトを変更しないこと。mainへの統合は原則AI-0のみ。
 
-## GitHubについて
+## GitHubとPhase 0の開発状況
 
-`beastfolk-chronicles` リポジトリはこのパッケージによって自動作成されません。新規リポジトリの所有者・公開URLは作成後に確定してください。既存の別作品のリポジトリに本コードをプッシュしないでください。
+- Repository: [izu48625/beastfolk-chronicles](https://github.com/izu48625/beastfolk-chronicles)
+- Branch: `feature/phase0-core`（PR経由で `main` へ統合）
+- Phase 0はエンジン/データ契約の土台のみ。ブラウザ実行画面、50地域、AI国家の戦争は未実装。
+- 別作品のリポジトリへは一切変更を加えない。
+
+## 開発担当への入り口
+
+1. `docs/interfaces.md` でキー・ID・更新責任を確認。
+2. `docs/ai-tasks.md` にあるAI-1〜AI-6の担当、入力・出力・完了条件を確認。
+3. `docs/integration.md` のブランチ/PR手順に沿って実装。
+4. `npm run check && npm test` でコア契約と再現性を検証。
